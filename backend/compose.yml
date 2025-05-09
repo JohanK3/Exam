@@ -10,6 +10,21 @@ services:
     networks:
       - app-network
 
+  # API Gateway
+  api-gateway-service:
+    build:
+      context: .
+      dockerfile: api-gateway-service/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - eureka-service
+    networks:
+      - app-network
+
   # Answer Service (MongoDB)
   answer-service:
     build:
