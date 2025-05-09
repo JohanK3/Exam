@@ -8,7 +8,7 @@
     COPY common-service/ ./common-service
     COPY common-student/ ./common-student
 
-    COPY user-service/ ./user-service/
+    COPY answer-service/ ./answer-service/
     
     # Installer le module partagé
     RUN mvn -f common-exam/pom.xml clean install
@@ -16,7 +16,7 @@
     RUN mvn -f common-student/pom.xml clean install
     
     # Compiler le microservice
-    RUN mvn -f user-service/pom.xml clean package -DskipTests
+    RUN mvn -f answer-service/pom.xml clean package -DskipTests
     
     # ----------- STAGE 2: Run --------------
     FROM eclipse-temurin:11-jre
@@ -24,7 +24,7 @@
     WORKDIR /app
     
     # Copier le JAR du service compilé
-    COPY --from=build /build/user-service/target/*.jar app.jar
+    COPY --from=build /build/answer-service/target/*.jar app.jar
     
     EXPOSE 8080
     ENTRYPOINT ["java", "-jar", "/app/app.jar"]

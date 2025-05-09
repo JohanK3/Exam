@@ -1,0 +1,108 @@
+
+services:
+  # Eureka Service
+  eureka-service:
+    build:
+      context: .
+      dockerfile: eureka-service/Dockerfile
+    ports:
+      - "8761:8761"
+    networks:
+      - app-network
+
+  # Answer Service (MongoDB)
+  answer-service:
+    build:
+      context: .
+      dockerfile: answer-service/Dockerfile
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mongo-answer-db
+      - eureka-service
+    networks:
+      - app-network
+
+  mongo-answer-db:
+    image: mongo:5.0
+    container_name: mongo-answer-db
+    volumes:
+      - mongo-answer-data:/data/db
+    networks:
+      - app-network
+
+  # Exam Service (MySQL)
+  exam-service:
+    build:
+      context: .
+      dockerfile: exam-service/Dockerfile
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/examdb
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    ports:
+      - "8082:8082"
+    depends_on:
+      - mysql-exam-db
+      - eureka-service
+    networks:
+      - app-network
+
+  mysql-exam-db:
+    image: mysql:8.0
+    container_name: mysql-exam-db
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: examdb
+    volumes:
+      - mysql-exam-data:/var/lib/mysql
+    networks:
+      - app-network
+
+  # User Service (PostgreSQL)
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user-db:5432/userdb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres-user-db
+      - eureka-service
+    networks:
+      - app-network
+
+  postgres-user-db:
+    image: postgres:13
+    container_name: postgres-user-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: userdb
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mongo-answer-data:
+  mysql-exam-data:
+  postgres-user-data:

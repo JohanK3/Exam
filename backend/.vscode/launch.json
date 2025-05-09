@@ -1,0 +1,66 @@
+{
+    "configurations": [
+        {
+            "type": "java",
+            "name": "UserServiceApplication",
+            "request": "launch",
+            "mainClass": "com.microservices.users.UserServiceApplication",
+            "projectName": "user-service"
+        },
+        {
+            "type": "java",
+            "name": "ZuulServiceApplication",
+            "request": "launch",
+            "mainClass": "com.microservices.zuulservice.ZuulServiceApplication",
+            "projectName": "zuul-service"
+        },
+        {
+            "type": "java",
+            "name": "EurekaServiceApplication",
+            "request": "launch",
+            "mainClass": "com.microservices.eurekaservice.EurekaServiceApplication",
+            "projectName": "eureka-service"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-CourseServiceApplication<course-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.microservices.courseservice.CourseServiceApplication",
+            "projectName": "course-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env",
+            "vmArgs": " -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=40805 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Dspring.jmx.enabled=true -Djava.rmi.server.hostname=localhost -Dspring.application.admin.enabled=true -Dspring.boot.project.name=course-service"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-AnswerServiceApplication<answer-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.microservices.answerservice.AnswerServiceApplication",
+            "projectName": "answer-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-ApiGatewayServiceApplication<api-gateway-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.microservices.apigatewayservice.ApiGatewayServiceApplication",
+            "projectName": "api-gateway-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
+            "type": "java",
+            "name": "Spring Boot-ExamServiceApplication<examen-service>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.microservices.examenservice.ExamServiceApplication",
+            "projectName": "examen-service",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

@@ -1,0 +1,90 @@
+services:
+  # Service Answer avec MySQL
+  answer-service:
+    build:
+      context: .
+      dockerfile: exam-service/Dockerfile
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/answerdb
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+    ports:
+      - "8081:8081"
+    depends_on:
+      - mysql-db
+    networks:
+      - app-network
+
+  # Service Course avec PostgreSQL
+  course-service:
+    build:
+      context: .
+      dockerfile: course-service/Dockerfile
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-db:5432/coursedb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+    ports:
+      - "8082:8082"
+    depends_on:
+      - postgres-db
+    networks:
+      - app-network
+
+  # Service Exam avec MongoDB
+  exam-service:
+    build:
+      context: .
+      dockerfile: exam-service/Dockerfile
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo-db:27017/examdb
+    ports:
+      - "8083:8083"
+    depends_on:
+      - mongo-db
+    networks:
+      - app-network
+
+  # Base de données MySQL pour Answer Service
+  mysql-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: answerdb
+    networks:
+      - app-network
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  # Base de données PostgreSQL pour Course Service
+  postgres-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: coursedb
+    networks:
+      - app-network
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  # Base de données MongoDB pour Exam Service
+  mongo-db:
+    image: mongo:5.0
+    networks:
+      - app-network
+    volumes:
+      - mongo-data:/data/db
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql-data:
+  postgres-data:
+  mongo-data:
