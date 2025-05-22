@@ -9,7 +9,6 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        // Variables sensibles gérées via Jenkins Credentials
         MYSQL_ROOT_PASSWORD = credentials('mysql-root-password')
         MYSQL_USER = credentials('mysql-user')
         MYSQL_DATABASE = credentials('mysql-database')
@@ -33,13 +32,41 @@ pipeline {
 
         stage('Compilation Maven') {
             steps {
-                sh 'mvn clean install -DskipTests'
+                script {
+                    def modules = [
+                        'backend/eureka-service',
+                        'backend/api-gateway-service',
+                        'backend/answer-service',
+                        'backend/exam-service',
+                        'backend/course-service',
+                        'backend/user-service'
+                    ]
+                    for (module in modules) {
+                        dir(module) {
+                            sh 'mvn clean install -DskipTests'
+                        }
+                    }
+                }
             }
         }
 
         stage('Exécution des tests') {
             steps {
-                sh 'mvn test'  // Placeholder pour tests JUnit
+                script {
+                    def modules = [
+                        'backend/eureka-service',
+                        'backend/api-gateway-service',
+                        'backend/answer-service',
+                        'backend/exam-service',
+                        'backend/course-service',
+                        'backend/user-service'
+                    ]
+                    for (module in modules) {
+                        dir(module) {
+                            sh 'mvn test'
+                        }
+                    }
+                }
             }
         }
 
@@ -47,7 +74,9 @@ pipeline {
             steps {
                 script {
                     withSonarQubeEnv(credentialsId: 'jenkins-token-sonar') {
-                        sh 'mvn sonar:sonar'
+                        dir('backend/course-service') {
+                            sh 'mvn sonar:sonar'
+                        }
                     }
                 }
             }
