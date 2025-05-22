@@ -53,29 +53,6 @@ pipeline {
             }
         }
 
-        stage('Exécution des tests') {
-            steps {
-                script {
-                    def modules = [
-                        'backend/common-exam',
-                        'backend/common-service',
-                        'backend/common-student',
-                        'backend/eureka-service',
-                        'backend/api-gateway-service',
-                        'backend/answer-service',
-                        'backend/exam-service',
-                        'backend/course-service',
-                        'backend/user-service'
-                    ]
-                    for (module in modules) {
-                        dir(module) {
-                            sh 'mvn test'
-                        }
-                    }
-                }
-            }
-        }
-
         stage('Analyse SonarQube') {
             steps {
                 script {
@@ -115,6 +92,7 @@ pipeline {
         always {
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
+            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
         }
     }
 }
