@@ -34,6 +34,9 @@ pipeline {
             steps {
                 script {
                     def modules = [
+                        'backend/common-exam',
+                        'backend/common-service',
+                        'backend/common-student',
                         'backend/eureka-service',
                         'backend/api-gateway-service',
                         'backend/answer-service',
@@ -54,6 +57,9 @@ pipeline {
             steps {
                 script {
                     def modules = [
+                        'backend/common-exam',
+                        'backend/common-service',
+                        'backend/common-student',
                         'backend/eureka-service',
                         'backend/api-gateway-service',
                         'backend/answer-service',
