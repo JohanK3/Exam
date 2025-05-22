@@ -9,16 +9,12 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        MYSQL_ROOT_PASSWORD = credentials('mysql-root-password')
-        MYSQL_USER = credentials('mysql-user')
-        MYSQL_DATABASE = credentials('mysql-database')
-        POSTGRES_USER = credentials('postgres-user')
-        POSTGRES_PASSWORD = credentials('postgres-password')
-        POSTGRES_DB = credentials('postgres-db')
+        ZAP_TARGET_URL = 'http://localhost:8090'  // URL de votre application à scanner
+        ZAP_REPORT_FILE = 'zap_report.html'       // Nom du rapport ZAP
     }
 
     stages {
-        stage('Nettoyage de l\'espace de travail') {
+        stage('Nettoyage de l’espace de travail') {
             steps {
                 cleanWs()
             }
@@ -74,8 +70,18 @@ pipeline {
 
         stage('Scan de sécurité OWASP ZAP') {
             steps {
-                sh './zap_scan.sh'
-                archiveArtifacts artifacts: 'zap_report.html', allowEmptyArchive: true
+                script {
+                    // Assurez-vous que l'application est démarrée avant le scan
+                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+                    sleep(time: 60, unit: 'SECONDS')  // Attendre que l'application soit disponible
+
+                    // Exécution du scan ZAP
+                    sh '''
+                        chmod +x zap_scan.sh
+                        ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE}
+                    '''
+                    archiveArtifacts artifacts: '${ZAP_REPORT_FILE}', allowEmptyArchive: true
+                }
             }
         }
 
