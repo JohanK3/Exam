@@ -9,8 +9,8 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://localhost:8090'  // URL de votre application à scanner
-        ZAP_REPORT_FILE = 'zap_report.html'       // Nom du rapport ZAP
+        ZAP_TARGET_URL = 'http://192.168.110.147:8090'
+        ZAP_REPORT_FILE = 'zap_report.html'
     }
 
     stages {
@@ -22,7 +22,7 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                git branch: 'sprint-1', url: 'https://github.com/JohanK3/Exam.git'
+                git branch: 'sprint-2', credentialsId: 'github-credentials', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
@@ -61,27 +61,31 @@ pipeline {
             }
         }
 
+        stage('Tests d’intégration JMeter') {
+            steps {
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+                sleep(time: 30, unit: 'SECONDS')
+                sh "${JMETER_HOME}/bin/jmeter -n -t Test\\ Integration.jmx -l integration_results.jtl -e -o jmeter-integration-report"
+                archiveArtifacts artifacts: 'integration_results.jtl,jmeter-integration-report/**', allowEmptyArchive: true
+            }
+        }
+
         stage('Tests de charge JMeter') {
             steps {
-                sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -l results.jtl -e -o report"
-                archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
+                sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -l load_results.jtl -e -o jmeter-load-report"
+                archiveArtifacts artifacts: 'load_results.jtl,jmeter-load-report/**', allowEmptyArchive: true
             }
         }
 
         stage('Scan de sécurité OWASP ZAP') {
             steps {
-                script {
-                    // Assurez-vous que l'application est démarrée avant le scan
-                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
-                    sleep(time: 60, unit: 'SECONDS')  // Attendre que l'application soit disponible
-
-                    // Exécution du scan ZAP
-                    sh '''
-                        chmod +x zap_scan.sh
-                        ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE}
-                    '''
-                    archiveArtifacts artifacts: '${ZAP_REPORT_FILE}', allowEmptyArchive: true
-                }
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+                sleep(time: 60, unit: 'SECONDS')
+                sh '''
+                    chmod +x zap_scan.sh
+                    ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE}
+                '''
+                archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: true
             }
         }
 
@@ -99,6 +103,9 @@ pipeline {
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+        }
+        failure {
+            echo 'Le pipeline a échoué. Vérifiez les logs et les rapports archivés.'
         }
     }
 }
