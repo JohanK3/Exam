@@ -96,6 +96,14 @@ pipeline {
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
             }
         }
+
+        stage('Scan de sécurité Trivy') {
+            steps {
+                sh 'chmod +x scan_trivy.sh'
+                sh './scan_trivy.sh'
+                archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
+            }
+        }
     }
 
     post {
