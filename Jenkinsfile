@@ -11,6 +11,8 @@ pipeline {
         JMETER_HOME = '/opt/jmeter'
         ZAP_TARGET_URL = 'http://192.168.110.147:8090'
         ZAP_REPORT_FILE = 'zap_report.html'
+        // Ajout d'un identifiant unique pour les builds Docker
+        DOCKER_BUILD_ID = "${env.BUILD_ID}"
     }
 
     stages {
@@ -53,8 +55,22 @@ pipeline {
             steps {
                 script {
                     withSonarQubeEnv(credentialsId: 'jenkins-token-sonar') {
-                        dir('backend/course-service') {
-                            sh 'mvn sonar:sonar'
+                        // Scan de tous les modules au lieu d'un seul
+                        def modules = [
+                            'backend/common-exam',
+                            'backend/common-service',
+                            'backend/common-student',
+                            'backend/eureka-service',
+                            'backend/api-gateway-service',
+                            'backend/answer-service',
+                            'backend/exam-service',
+                            'backend/course-service',
+                            'backend/user-service'
+                        ]
+                        for (module in modules) {
+                            dir(module) {
+                                sh "mvn sonar:sonar -Dsonar.projectKey=Exam-${module.replace('/', '-')}"
+                            }
                         }
                     }
                 }
@@ -89,19 +105,51 @@ pipeline {
             }
         }
 
-        stage('Construction et déploiement Docker Compose') {
+        stage('Construction Docker Compose') {
             steps {
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down'
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+                // Build forcé avec cache et tag explicite
+                sh '''
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} build --no-cache
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | xargs -I {} docker tag {} {}_${DOCKER_BUILD_ID}
+                '''
+            }
+        }
+
+        stage('Déploiement Docker Compose') {
+            steps {
+                sh '''
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} down
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
+                '''
             }
         }
 
         stage('Scan de sécurité Trivy') {
             steps {
-                sh 'chmod +x scan_trivy.sh'
-                sh './scan_trivy.sh'
-                archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
+                script {
+                    // Liste des services à scanner (sans les bases de données externes)
+                    def services = [
+                        'eureka-service',
+                        'api-gateway-service',
+                        'answer-service',
+                        'exam-service',
+                        'course-service',
+                        'user-service',
+                        'frontend'
+                    ]
+
+                    // Scan avec vérification de l'existence des images
+                    for (service in services) {
+                        sh """
+                            if docker image inspect ${service}:latest >/dev/null 2>&1; then
+                                trivy image --scanners vuln --exit-code 0 ${service}:latest > trivy-${service}.txt
+                            else
+                                echo "[WARNING] Image ${service}:latest non trouvée - scan ignoré" > trivy-${service}.txt
+                            fi
+                        """
+                    }
+                    archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
+                }
             }
         }
     }
@@ -111,6 +159,9 @@ pipeline {
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
+
+            // Nettoyage des images tagguées temporaires
+            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true'
         }
         failure {
             echo 'Le pipeline a échoué. Vérifiez les logs et les rapports archivés.'
