@@ -80,7 +80,7 @@ pipeline {
         stage('Tests d’intégration JMeter') {
             steps {
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
-                sleep(time: 30, unit: 'SECONDS')
+                sleep(time: 120, unit: 'SECONDS')
                 sh "${JMETER_HOME}/bin/jmeter -n -t Test\\ Integration.jmx -l integration_results.jtl -e -o jmeter-integration-report"
                 archiveArtifacts artifacts: 'integration_results.jtl,jmeter-integration-report/**', allowEmptyArchive: true
             }
@@ -97,7 +97,7 @@ pipeline {
             steps {
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
                 // Attendre que l'API Gateway soit prêt (augmenté à 90 secondes)
-                sleep(time: 90, unit: 'SECONDS')
+                sleep(time: 120, unit: 'SECONDS')
                 sh '''
                     chmod +x zap_scan.sh
                     ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
