@@ -160,4 +160,3 @@ pipeline {
             echo 'Le pipeline a échoué. Vérifiez les logs et les rapports archivés.'
         }
     }
-}
