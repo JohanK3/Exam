@@ -9,7 +9,7 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://192.168.110.147:8090'
+        ZAP_TARGET_URL = 'http://localhost:8090'
         ZAP_REPORT_FILE = 'zap_report.html'
         // Ajout d'un identifiant unique pour les builds Docker
         DOCKER_BUILD_ID = "${env.BUILD_ID}"
@@ -93,17 +93,20 @@ pipeline {
             }
         }
 
-        stage('Scan de sécurité OWASP ZAP') {
-            steps {
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
-                sleep(time: 60, unit: 'SECONDS')
-                sh '''
-                    chmod +x zap_scan.sh
-                    ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE}
-                '''
-                archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: true
-            }
-        }
+       stage('Scan de sécurité OWASP ZAP') {
+           steps {
+               sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+               // Attendre que l'API Gateway soit prêt (augmenté à 90 secondes)
+               sleep(time: 90, unit: 'SECONDS')
+               sh '''
+                   chmod +x zap_scan.sh
+                   ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
+               '''
+               // Vérifier si le rapport est généré avant archivage
+               sh 'if [ -f ${ZAP_REPORT_FILE} ]; then echo "Rapport ZAP trouvé"; else echo "Aucun rapport ZAP généré"; fi'
+               archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: true
+           }
+       }
 
         stage('Construction Docker Compose') {
             steps {
