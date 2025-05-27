@@ -93,27 +93,37 @@ pipeline {
             }
         }
 
-       stage('Scan de sécurité OWASP ZAP') {
-           steps {
-               sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
-               // Attendre que l'API Gateway soit prêt (augmenté à 90 secondes)
-               sleep(time: 90, unit: 'SECONDS')
-               sh '''
-                   chmod +x zap_scan.sh
-                   ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
-               '''
-               // Vérifier si le rapport est généré avant archivage
-               sh 'if [ -f ${ZAP_REPORT_FILE} ]; then echo "Rapport ZAP trouvé"; else echo "Aucun rapport ZAP généré"; fi'
-               archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: true
-           }
-       }
+        stage('Scan de sécurité OWASP ZAP') {
+            steps {
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} up -d'
+                // Attendre que l'API Gateway soit prêt (augmenté à 90 secondes)
+                sleep(time: 90, unit: 'SECONDS')
+                sh '''
+                    chmod +x zap_scan.sh
+                    ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
+                '''
+                // Vérifier si le rapport est généré avant archivage
+                sh 'if [ -f ${ZAP_REPORT_FILE} ]; then echo "Rapport ZAP trouvé"; else echo "Aucun rapport ZAP généré"; fi'
+                archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: true
+            }
+        }
+
+        stage('Nettoyage des anciennes images') {
+            steps {
+                sh '''
+                    # Supprimer les images avec le préfixe exam- pour éviter les conflits
+                    docker images | grep '^exam-' | awk '{print $1":"$2}' | xargs -I {} docker rmi {} || true
+                '''
+            }
+        }
 
         stage('Construction Docker Compose') {
             steps {
                 // Build forcé avec cache et tag explicite
                 sh '''
                     docker-compose -f ${DOCKER_COMPOSE_FILE} build --no-cache
-                    docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | xargs -I {} docker tag {} {}_${DOCKER_BUILD_ID}
+                    # Ajouter un tag supplémentaire avec DOCKER_BUILD_ID sans perdre :latest
+                    docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} sh -c 'docker tag {} {}_${DOCKER_BUILD_ID} || true'
                 '''
             }
         }
@@ -123,36 +133,19 @@ pipeline {
                 sh '''
                     docker-compose -f ${DOCKER_COMPOSE_FILE} down
                     docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
+                    # Nettoyer les images inutilisées après déploiement
+                    docker image prune -f
                 '''
             }
         }
 
         stage('Scan de sécurité Trivy') {
             steps {
-                script {
-                    // Liste des services à scanner (sans les bases de données externes)
-                    def services = [
-                        'eureka-service',
-                        'api-gateway-service',
-                        'answer-service',
-                        'exam-service',
-                        'course-service',
-                        'user-service',
-                        'frontend'
-                    ]
-
-                    // Scan avec vérification de l'existence des images
-                    for (service in services) {
-                        sh """
-                            if docker image inspect ${service}:latest >/dev/null 2>&1; then
-                                trivy image --scanners vuln --exit-code 0 ${service}:latest > trivy-${service}.txt
-                            else
-                                echo "[WARNING] Image ${service}:latest non trouvée - scan ignoré" > trivy-${service}.txt
-                            fi
-                        """
-                    }
-                    archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
-                }
+                sh '''
+                    chmod +x scan_trivy.sh
+                    ./scan_trivy.sh
+                '''
+                archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
             }
         }
     }
@@ -163,8 +156,8 @@ pipeline {
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
 
-            // Nettoyage des images tagguées temporaires
-            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true'
+            // Nettoyage des images taggées temporaires
+            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true'
         }
         failure {
             echo 'Le pipeline a échoué. Vérifiez les logs et les rapports archivés.'
