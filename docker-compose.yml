@@ -1,177 +1,183 @@
+version: '3.8'
+services:
+  eureka-service:
+    build:
+      context: .
+      dockerfile: backend/eureka-service/Dockerfile
+    image: exam-eureka-service:latest
+    ports:
+      - "8761:8761"
+    networks:
+      - app-network
 
-  version: '3.8'
-  services:
-    eureka-service:
-      build:
-        context: .
-        dockerfile: backend/eureka-service/Dockerfile
-      ports:
-        - "8761:8761"
-      networks:
-        - app-network
+  api-gateway-service:
+    build:
+      context: .
+      dockerfile: backend/api-gateway-service/Dockerfile
+    image: exam-api-gateway-service:latest
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - eureka-service
+    networks:
+      - app-network
 
-    api-gateway-service:
-      build:
-        context: .
-        dockerfile: backend/api-gateway-service/Dockerfile
-      ports:
-        - "8090:8090"
-      environment:
-        - SPRING_PROFILES_ACTIVE=prod
-        - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
-      depends_on:
-        - eureka-service
-      networks:
-        - app-network
+  answer-service:
+    build:
+      context: .
+      dockerfile: backend/answer-service/Dockerfile
+    image: exam-answer-service:latest
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - mongo-answer-db
+      - eureka-service
+    networks:
+      - app-network
 
-    answer-service:
-      build:
-        context: .
-        dockerfile: backend/answer-service/Dockerfile
-      ports:
-        - "8083:8083"
-      environment:
-        - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
-        - SPRING_PROFILES_ACTIVE=prod
-        - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
-      depends_on:
-        - mongo-answer-db
-        - eureka-service
-      networks:
-        - app-network
+  mongo-answer-db:
+    image: mongo:5.0
+    volumes:
+      - mongo-answer-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+    networks:
+      - app-network
 
-    mongo-answer-db:
-      image: mongo:5.0
-      volumes:
-        - mongo-answer-data:/data/db
-      healthcheck:
-        test: ["CMD", "mongo", "--eval", "db.runCommand({ ping: 1 })"]
-        interval: 3s
-        timeout: 2s
-        retries: 2
-      networks:
-        - app-network
+  exam-service:
+    build:
+      context: .
+      dockerfile: backend/exam-service/Dockerfile
+    image: exam-exam-service:latest
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - mysql-exam-db
+      - eureka-service
+    networks:
+      - app-network
 
-    exam-service:
-      build:
-        context: .
-        dockerfile: backend/exam-service/Dockerfile
-      ports:
-        - "8082:8082"
-      environment:
-        - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
-        - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
-        - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
-        - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-        - SPRING_PROFILES_ACTIVE=prod
-        - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
-      depends_on:
-        - mysql-exam-db
-        - eureka-service
-      networks:
-        - app-network
+  course-service:
+    build:
+      context: .
+      dockerfile: backend/course-service/Dockerfile
+    image: exam-course-service:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - mysql-exam-db
+      - eureka-service
+    networks:
+      - app-network
 
-    course-service:
-      build:
-        context: .
-        dockerfile: backend/course-service/Dockerfile
-      ports:
-        - "8081:8081"
-      environment:
-        - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
-        - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
-        - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
-        - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-        - SPRING_PROFILES_ACTIVE=prod
-        - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
-      depends_on:
-        - mysql-exam-db
-        - eureka-service
-      networks:
-        - app-network
+  mysql-exam-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-examdb}
+    volumes:
+      - mysql-exam-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+    networks:
+      - app-network
 
-    mysql-exam-db:
-      image: mysql:8.0
-      environment:
-        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
-        MYSQL_DATABASE: ${MYSQL_DATABASE:-examdb}
-      volumes:
-        - mysql-exam-data:/var/lib/mysql
-      healthcheck:
-        test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
-        interval: 3s
-        timeout: 2s
-        retries: 2
-      networks:
-        - app-network
+  user-service:
+    build:
+      context: .
+      dockerfile: backend/user-service/Dockerfile
+    image: exam-user-service:latest
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user-db:5432/${POSTGRES_DB:-userdb}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+    depends_on:
+      - postgres-user-db
+      - eureka-service
+    networks:
+      - app-network
 
-    user-service:
-      build:
-        context: .
-        dockerfile: backend/user-service/Dockerfile
-      ports:
-        - "8084:8084"
-      environment:
-        - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user-db:5432/${POSTGRES_DB:-userdb}
-        - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
-        - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-        - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-        - SPRING_PROFILES_ACTIVE=prod
-        - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
-      depends_on:
-        - postgres-user-db
-        - eureka-service
-      networks:
-        - app-network
+  postgres-user-db:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-userdb}
+    volumes:
+      - postgres-user-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
+    networks:
+      - app-network
 
-    postgres-user-db:
-      image: postgres:13
-      environment:
-        POSTGRES_USER: ${POSTGRES_USER:-postgres}
-        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-        POSTGRES_DB: ${POSTGRES_DB:-userdb}
-      volumes:
-        - postgres-user-data:/var/lib/postgresql/data
-      healthcheck:
-        test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
-        interval: 3s
-        timeout: 2s
-        retries: 2
-      networks:
-        - app-network
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: exam-frontend:latest
+    ports:
+      - "4200:80"
+    depends_on:
+      - api-gateway-service
+    networks:
+      - app-network
 
-    frontend:
-      build:
-        context: ./frontend
-        dockerfile: Dockerfile
-      ports:
-        - "4200:80"
-      depends_on:
-        - api-gateway-service
-      networks:
-        - app-network
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 3s
+      timeout: 2s
+      retries: 2
 
-    prometheus:
-      image: prom/prometheus:latest
-      volumes:
-        - ./prometheus.yml:/etc/prometheus/prometheus.yml
-        - prometheus-data:/prometheus
-      ports:
-        - "9090:9090"
-      networks:
-        - app-network
-      healthcheck:
-        test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-        interval: 3s
-        timeout: 2s
-        retries: 2
+networks:
+  app-network:
+    driver: bridge
 
-  networks:
-    app-network:
-      driver: bridge
-
-  volumes:
-    mongo-answer-data:
-    mysql-exam-data:
-    postgres-user-data:
-    prometheus-data:
+volumes:
+  mongo-answer-data:
+  mysql-exam-data:
+  postgres-user-data:
+  prometheus-data:

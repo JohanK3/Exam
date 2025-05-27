@@ -119,11 +119,9 @@ pipeline {
 
         stage('Construction Docker Compose') {
             steps {
-                // Build forcé avec cache et tag explicite
                 sh '''
-                    docker-compose -f ${DOCKER_COMPOSE_FILE} build --no-cache
-                    # Ajouter un tag supplémentaire avec DOCKER_BUILD_ID sans perdre :latest
-                    docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} sh -c 'docker tag {} {}_${DOCKER_BUILD_ID} || true'
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build --no-cache
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} sh -c 'docker tag {} {}_${DOCKER_BUILD_ID} || true'
                 '''
             }
         }
@@ -131,9 +129,8 @@ pipeline {
         stage('Déploiement Docker Compose') {
             steps {
                 sh '''
-                    docker-compose -f ${DOCKER_COMPOSE_FILE} down
-                    docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-                    # Nettoyer les images inutilisées après déploiement
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
                     docker image prune -f
                 '''
             }
@@ -142,13 +139,13 @@ pipeline {
         stage('Scan de sécurité Trivy') {
             steps {
                 sh '''
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build || true
                     chmod +x scan_trivy.sh
                     ./scan_trivy.sh
                 '''
                 archiveArtifacts artifacts: 'trivy-*.txt', allowEmptyArchive: true
             }
         }
-    }
 
     post {
         always {
