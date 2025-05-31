@@ -27,6 +27,30 @@ pipeline {
             }
         }
 
+        stage('Linting des Dockerfiles') {
+            steps {
+                script {
+                    def dockerfiles = [
+                        'backend/eureka-service/Dockerfile',
+                        'backend/api-gateway-service/Dockerfile',
+                        'backend/answer-service/Dockerfile',
+                        'backend/exam-service/Dockerfile',
+                        'backend/course-service/Dockerfile',
+                        'backend/user-service/Dockerfile'
+                    ]
+                    for (dockerfile in dockerfiles) {
+                        sh "docker run --rm -i hadolint/hadolint < ${dockerfile} || echo 'Problèmes détectés dans ${dockerfile}, vérifiez le rapport.'"
+                    }
+                }
+            }
+        }
+
+        stage('Validation docker-compose') {
+            steps {
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} config --quiet || echo "Erreur dans la validation de ${DOCKER_COMPOSE_FILE}"'
+            }
+        }
+
         stage('Compilation Maven') {
             steps {
                 script {
