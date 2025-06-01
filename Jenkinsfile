@@ -99,13 +99,22 @@ pipeline {
             }
         }
 
-        stage('Tests d’intégration JMeter') {
+        stage('Construction et démarrage Docker Compose') {
             steps {
                 sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build
                     COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
                 '''
-                sleep(time: 120, unit: 'SECONDS')
+                // Attente intelligente de la disponibilité des services
+                sh '''
+                    chmod +x wait-for-it.sh
+                    ./wait-for-it.sh ${ZAP_TARGET_URL} --timeout=120 -- echo "Services prêts" || echo "Timeout: services non disponibles"
+                '''
+            }
+        }
+
+        stage('Tests d’intégration JMeter') {
+            steps {
                 sh "${JMETER_HOME}/bin/jmeter -n -t Test\\ Integration.jmx -l integration_results.jtl -e -o jmeter-integration-report"
                 archiveArtifacts artifacts: 'integration_results.jtl,jmeter-integration-report/**', allowEmptyArchive: true
             }
@@ -121,11 +130,6 @@ pipeline {
         stage('Scan de sécurité OWASP ZAP') {
             steps {
                 sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-                '''
-                sleep(time: 120, unit: 'SECONDS')
-                sh '''
                     chmod +x zap_scan.sh
                     ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
                 '''
@@ -134,37 +138,9 @@ pipeline {
             }
         }
 
-        stage('Nettoyage des anciennes images') {
-            steps {
-                sh '''
-                    docker images | grep '^exam-' | awk '{print $1":"$2}' | xargs -I {} docker rmi {} || true
-                '''
-            }
-        }
-
-        stage('Construction Docker Compose') {
-            steps {
-                sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build --no-cache
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} sh -c 'docker tag {} {}_${DOCKER_BUILD_ID} || true'
-                '''
-            }
-        }
-
-        stage('Déploiement Docker Compose') {
-            steps {
-                sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-                    docker image prune -f
-                '''
-            }
-        }
-
         stage('Scan de sécurité Trivy') {
             steps {
                 sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build || true
                     chmod +x scan_trivy.sh
                     ./scan_trivy.sh
                 '''
@@ -178,10 +154,13 @@ pipeline {
             sh '''
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
                 docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log
+                docker image prune -f
             '''
-            archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
-            archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
-            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true'
+            sh '''
+                docker images | grep '^exam-' | awk '{print $1":"$2}' | xargs -I {} docker rmi {} || true
+                docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true
+            '''
+            archiveArtifacts artifacts: 'docker-compose.log,**/target/*.jar', allowEmptyArchive: true
         }
         failure {
             echo 'Le pipeline a échoué. Vérifiez les logs et les rapports archivés.'
