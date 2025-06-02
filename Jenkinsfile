@@ -27,6 +27,15 @@ pipeline {
             }
         }
 
+        stage('Téléchargement de wait-for-it.sh') {
+            steps {
+                sh '''
+                    curl -o wait-for-it.sh https://raw.githubusercontent.com/vishnubob/wait-for-it/master/wait-for-it.sh
+                    chmod +x wait-for-it.sh
+                '''
+            }
+        }
+
         stage('Linting des Dockerfiles') {
             steps {
                 script {
@@ -104,10 +113,6 @@ pipeline {
                 sh '''
                     COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build
                     COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-                '''
-                // Attente intelligente de la disponibilité des services
-                sh '''
-                    chmod +x wait-for-it.sh
                     ./wait-for-it.sh ${ZAP_TARGET_URL} --timeout=120 -- echo "Services prêts" || echo "Timeout: services non disponibles"
                 '''
             }
@@ -155,8 +160,6 @@ pipeline {
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
                 docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log
                 docker image prune -f
-            '''
-            sh '''
                 docker images | grep '^exam-' | awk '{print $1":"$2}' | xargs -I {} docker rmi {} || true
                 docker-compose -f ${DOCKER_COMPOSE_FILE} images -q | sort -u | xargs -I {} docker rmi {}_${DOCKER_BUILD_ID} || true
             '''
