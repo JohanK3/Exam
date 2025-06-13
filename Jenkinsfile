@@ -6,11 +6,11 @@ pipeline {
         // que vous avez configurés dans Jenkins > Manage Jenkins > Global Tool Configuration
         maven 'Maven3'
         jdk 'Java17'
+        // Correction ici : Le type de tool correct pour SonarQube Scanner est 'sonarRunner'.
         // Assurez-vous que 'SonarQubeScannerCLI' est le nom exact donné
         // dans Jenkins > Manage Jenkins > Global Tool Configuration > SonarQube Scanners
-        sonarScanner 'SonarQubeScannerCLI'
+        sonarRunner 'SonarQubeScannerCLI'
     }
-
     environment {
         // Chemin vers votre fichier docker-compose
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
