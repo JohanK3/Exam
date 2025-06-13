@@ -6,8 +6,9 @@ pipeline {
         // que vous avez configurés dans Jenkins > Manage Jenkins > Global Tool Configuration
         maven 'Maven3'
         jdk 'Java17'
-        // La ligne 'sonarRunner 'SonarQubeScannerCLI'' a été retirée car elle causait une erreur.
-        // L'outil SonarQube Scanner sera accessible via les configurations globales de Jenkins
+        // La déclaration explicite de 'sonarRunner' dans le bloc 'tools' a été retirée
+        // car elle causait une erreur "Invalid tool type".
+        // L'outil SonarQube Scanner est toujours accessible via les configurations globales de Jenkins
         // et l'étape 'withSonarQubeEnv'.
     }
 
@@ -26,10 +27,10 @@ pipeline {
         // --- Variables d'environnement pour SonarQube ---
         // Le nom configuré pour SonarQube Scanner CLI dans Jenkins Global Tool Configuration
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
-        // L'URL de votre serveur SonarQube (généralement son adresse IP ou localhost:9000)
-        SONAR_HOST_URL = 'http://192.168.147.110:9000'
-        // L'ID de vos identifiants Jenkins (Secret text) contenant le token SonarQube
-        SONAR_TOKEN_CRED_ID = 'sonarqube-token'
+        // L'URL de votre serveur SonarQube (corrigée avec l'IP de votre VM)
+        SONAR_HOST_URL = 'http://192.168.110.147:9000'
+        // L'ID de vos identifiants Jenkins (Secret text) contenant le token SonarQube (corrigé)
+        SONAR_TOKEN_CRED_ID = 'sonarqube-token' // Correspond à l'ID que vous avez créé dans Jenkins
         // --- Fin des variables SonarQube ---
     }
 
@@ -44,7 +45,7 @@ pipeline {
         stage('Récupération du code source') {
             steps {
                 echo "Récupération du code source depuis GitHub (branche sprint-3)..."
-                // Assurez-vous que 'github-credentials' est l'ID de vos identifiants GitHub dans Jenkins
+                // Assurez-vous que 'github' est l'ID de vos identifiants GitHub dans Jenkins (corrigé)
                 git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
@@ -116,6 +117,26 @@ pipeline {
             }
         }
 
+        stage('Construction et démarrage Docker Compose') {
+            steps {
+                echo "Construction des images Docker via Docker Compose..."
+                sh '''
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build
+
+                    echo "Démarrage des services applicatifs via Docker Compose (y compris SonarQube)..."
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
+
+                    echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
+                    # Attendre que l'API Gateway soit prête (pour les tests dynamiques)
+                    ./wait-for-it.sh ${ZAP_TARGET_URL#http://} --timeout=180 -- echo "Services prêts" || { echo "Timeout: services non disponibles! Le build échoue."; exit 1; }
+                    
+                    echo "Attente de la disponibilité de SonarQube (${SONAR_HOST_URL})..."
+                    # Attendre que SonarQube soit prêt à recevoir les analyses
+                    ./wait-for-it.sh ${SONAR_HOST_URL#http://} --timeout=180 -- echo "SonarQube est prêt!" || { echo "Timeout: SonarQube non disponible!"; exit 1; }
+                '''
+            }
+        }
+
         stage('Compilation Maven') {
             steps {
                 script {
@@ -134,7 +155,6 @@ pipeline {
                     for (module in modules) {
                         dir(module) {
                             echo "  -> Compilation de : ${module}"
-                            // -DskipTests: Garde cette option si vous exécutez les tests Junit dans une étape séparée ou plus tard.
                             sh 'mvn clean install -DskipTests'
                         }
                     }
@@ -146,7 +166,6 @@ pipeline {
             steps {
                 script {
                     echo "Lancement de l'analyse SonarQube pour les modules backend..."
-                    // Liste de tous les modules backend à scanner
                     def modulesToScan = [
                         'backend/common-exam',
                         'backend/common-service',
@@ -159,19 +178,14 @@ pipeline {
                         'backend/user-service'
                     ]
 
-                    // Itérer sur chaque module et lancer l'analyse SonarQube
                     for (modulePath in modulesToScan) {
-                        dir(modulePath) { // Se positionner dans le répertoire du module
+                        dir(modulePath) {
                             echo "  -> Analyse SonarQube pour le module : ${modulePath}"
-                            // Utilisation de withSonarQubeEnv pour injecter l'URL et le token
                             withSonarQubeEnv(credentialsId: env.SONAR_TOKEN_CRED_ID) {
-                                // Exécution du SonarScanner CLI.
-                                // Le chemin de l'outil est résolu automatiquement via la configuration globale de Jenkins
-                                // puisque 'SONAR_SCANNER_NAME' est configuré dans 'environment'.
                                 sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner " +
-                                    "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')}" + // Ex: 'Exam-backend-course-service'
+                                    "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')}" +
                                     "-Dsonar.sources=src/main/java" +
-                                    "-Dsonar.java.binaries=target/classes" + // Important pour l'analyse Java
+                                    "-Dsonar.java.binaries=target/classes" +
                                     "-Dsonar.host.url=${env.SONAR_HOST_URL}" +
                                     "-Dsonar.login=${env.SONAR_AUTH_TOKEN}"
                             }
@@ -182,41 +196,19 @@ pipeline {
             post {
                 always {
                     echo "Vérification du Quality Gate SonarQube..."
-                    // Attendre la fin de l'analyse et vérifier le Quality Gate
-                    // Si le Quality Gate échoue, le pipeline sera marqué en FAILURE
-                    timeout(time: 10, unit: 'MINUTES') { // Donne suffisamment de temps pour que l'analyse se termine sur SonarQube
+                    timeout(time: 10, unit: 'MINUTES') {
                         waitForQualityGate abortPipeline: true
                     }
                 }
                 failure {
                     echo "Le Quality Gate SonarQube a échoué. Veuillez vérifier les rapports sur ${env.SONAR_HOST_URL}."
-                    // La ligne 'currentBuild.result = 'FAILURE'' est supprimée ici
-                    // car 'waitForQualityGate abortPipeline: true' gère déjà l'échec du pipeline.
                 }
-            }
-        }
-
-        stage('Construction et démarrage Docker Compose') {
-            steps {
-                echo "Construction des images Docker via Docker Compose..."
-                sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} build
-
-                    echo "Démarrage des services applicatifs via Docker Compose..."
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-
-                    echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
-                    # Utilisation de wait-for-it.sh pour attendre la disponibilité du service
-                    # ${ZAP_TARGET_URL#http://} retire le préfixe 'http://' pour wait-for-it.sh
-                    ./wait-for-it.sh ${ZAP_TARGET_URL#http://} --timeout=180 -- echo "Services prêts" || { echo "Timeout: services non disponibles! Le build échoue."; exit 1; }
-                '''
             }
         }
 
         stage('Tests d’intégration JMeter') {
             steps {
                 echo "Exécution des tests d'intégration JMeter..."
-                // Assurez-vous que 'Test Integration.jmx' existe et que son chemin est correct
                 sh "${JMETER_HOME}/bin/jmeter -n -t Test\\ Integration.jmx -l integration_results.jtl -e -o jmeter-integration-report"
                 archiveArtifacts artifacts: 'integration_results.jtl,jmeter-integration-report/**', allowEmptyArchive: true
             }
@@ -225,7 +217,6 @@ pipeline {
         stage('Tests de charge JMeter') {
             steps {
                 echo "Exécution des tests de charge JMeter..."
-                // Assurez-vous que 'test.jmx' existe et que son chemin est correct
                 sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -l load_results.jtl -e -o jmeter-load-report"
                 archiveArtifacts artifacts: 'load_results.jtl,jmeter-load-report/**', allowEmptyArchive: true
             }
@@ -234,7 +225,6 @@ pipeline {
         stage('Scan de sécurité OWASP ZAP') {
             steps {
                 echo "Lancement du scan de sécurité OWASP ZAP..."
-                // Assurez-vous que zap_scan.sh est présent et exécutable dans le workspace Jenkins
                 sh '''
                     chmod +x zap_scan.sh
                     ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE} || echo "Scan ZAP a échoué, vérifiez l'accessibilité de ${ZAP_TARGET_URL}"
@@ -259,8 +249,6 @@ pipeline {
                     ]
                     for (image in dockerImages) {
                         echo "  -> Scan Trivy pour l'image : ${image}:latest"
-                        // `|| true` permet de ne pas faire échouer le build si Trivy trouve des vulnérabilités.
-                        // Pour que le build échoue sur les vulnérabilités critiques/élevées, supprimez '|| true'.
                         sh "trivy image --severity HIGH,CRITICAL --format table ${image}:latest > trivy-${image.replace('exam-', '')}-report.txt || true"
                     }
                 }
@@ -273,15 +261,9 @@ pipeline {
         always {
             echo "Nettoyage post-pipeline : arrêt des services Docker Compose et suppression des images temporaires..."
             sh '''
-                # Arrêter les services Docker Compose et supprimer les conteneurs
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
-                # Archiver les logs de Docker Compose pour le débogage
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log
-                # Supprimer les images Docker créées par le build (celles avec le préfixe 'exam-')
                 docker images | grep '^exam-' | awk '{print $1":"$2}' | xargs -r docker rmi || true
-                # Nettoyer les images Docker non utilisées par d'autres conteneurs actifs pour libérer de l'espace
-                # Attention : 'docker image prune -f' supprime toutes les images non utilisées,
-                # y compris celles qui ne sont pas liées à ce projet si elles ne sont utilisées par aucun conteneur.
                 docker image prune -f || true
             '''
             archiveArtifacts artifacts: 'docker-compose.log,**/target/*.jar', allowEmptyArchive: true
