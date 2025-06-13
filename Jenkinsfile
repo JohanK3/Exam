@@ -128,11 +128,11 @@ pipeline {
 
                     echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
                     # Attendre que l'API Gateway soit prête (pour les tests dynamiques)
-                    ./wait-for-it.sh ${ZAP_TARGET_URL#http://} --timeout=180 -- echo "Services prêts" || { echo "Timeout: services non disponibles! Le build échoue."; exit 1; }
+                    ./wait-for-it.sh ${ZAP_TARGET_URL#http://} --timeout=300 -- echo "Services prêts" || { echo "Timeout: services non disponibles! Le build échoue."; exit 1; }
                     
                     echo "Attente de la disponibilité de SonarQube (${SONAR_HOST_URL})..."
                     # Attendre que SonarQube soit prêt à recevoir les analyses
-                    ./wait-for-it.sh ${SONAR_HOST_URL#http://} --timeout=180 -- echo "SonarQube est prêt!" || { echo "Timeout: SonarQube non disponible!"; exit 1; }
+                    ./wait-for-it.sh ${SONAR_HOST_URL#http://} --timeout=300 -- echo "SonarQube est prêt!" || { echo "Timeout: SonarQube non disponible!"; exit 1; }
                 '''
             }
         }
@@ -182,11 +182,12 @@ pipeline {
                         dir(modulePath) {
                             echo "  -> Analyse SonarQube pour le module : ${modulePath}"
                             withSonarQubeEnv(credentialsId: env.SONAR_TOKEN_CRED_ID) {
+                                // CORRECTION ICI : Chaque paramètre -D est maintenant correctement séparé par un espace
                                 sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner " +
-                                    "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')}" +
-                                    "-Dsonar.sources=src/main/java" +
-                                    "-Dsonar.java.binaries=target/classes" +
-                                    "-Dsonar.host.url=${env.SONAR_HOST_URL}" +
+                                    "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')} " +
+                                    "-Dsonar.sources=src/main/java " +
+                                    "-Dsonar.java.binaries=target/classes " +
+                                    "-Dsonar.host.url=${env.SONAR_HOST_URL} " +
                                     "-Dsonar.login=${env.SONAR_AUTH_TOKEN}"
                             }
                         }
