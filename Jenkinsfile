@@ -29,7 +29,7 @@ pipeline {
         // L'URL de votre serveur SonarQube (généralement son adresse IP ou localhost:9000)
         SONAR_HOST_URL = 'http://192.168.147.110:9000'
         // L'ID de vos identifiants Jenkins (Secret text) contenant le token SonarQube
-        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
+        SONAR_TOKEN_CRED_ID = 'sonarqube-token'
         // --- Fin des variables SonarQube ---
     }
 
