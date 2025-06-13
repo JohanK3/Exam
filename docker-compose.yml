@@ -4,8 +4,9 @@ services:
   # Service Discovery
   eureka-service:
     build:
-      context: .
-      dockerfile: eureka-service/Dockerfile
+      context: backend
+      dockerfile: eureka-service/Dockerfile # Chemin corrigé
+    image: exam-eureka-service:latest # Ajout d'un nom d'image pour faciliter le tagging/push
     ports:
       - "8761:8761"
     networks:
@@ -14,8 +15,9 @@ services:
   # API Gateway
   api-gateway-service:
     build:
-      context: .
-      dockerfile: api-gateway-service/Dockerfile
+      context: backend
+      dockerfile: api-gateway-service/Dockerfile # Chemin corrigé
+    image: exam-api-gateway-service:latest # Ajout d'un nom d'image
     ports:
       - "8090:8090"
     environment:
@@ -29,8 +31,9 @@ services:
   # Services métiers avec leurs bases de données
   answer-service:
     build:
-      context: .
-      dockerfile: answer-service/Dockerfile
+      context: backend
+      dockerfile: answer-service/Dockerfile # Chemin corrigé
+    image: exam-answer-service:latest # Ajout d'un nom d'image
     ports:
       - "8083:8083"
     environment:
@@ -58,8 +61,9 @@ services:
 
   exam-service:
     build:
-      context: .
-      dockerfile: exam-service/Dockerfile
+      context: backend
+      dockerfile: exam-service/Dockerfile # Chemin corrigé
+    image: exam-exam-service:latest # Ajout d'un nom d'image
     ports:
       - "8082:8082"
     environment:
@@ -77,8 +81,9 @@ services:
 
   course-service:
     build:
-      context: .
-      dockerfile: course-service/Dockerfile
+      context: backend
+      dockerfile: course-service/Dockerfile # Chemin corrigé
+    image: exam-course-service:latest # Ajout d'un nom d'image
     ports:
       - "8081:8081"
     environment:
@@ -112,8 +117,9 @@ services:
 
   user-service:
     build:
-      context: .
-      dockerfile: user-service/Dockerfile
+      context: backend
+      dockerfile: user-service/Dockerfile # Chemin corrigé
+    image: exam-user-service:latest # Ajout d'un nom d'image
     ports:
       - "8084:8080"
     environment:
@@ -149,14 +155,59 @@ services:
   # Frontend Angular
   frontend:
     build:
-      context: ../frontend
-      dockerfile: Dockerfile
+      context: frontend # Chemin corrigé: "frontend" si Dockerfile est dans le sous-dossier frontend
+      dockerfile: Dockerfile # C'est juste "Dockerfile" si le contexte est le dossier frontend
+    image: exam-frontend:latest # Ajout d'un nom d'image
     ports:
       - "4200:80"
     depends_on:
       - api-gateway-service
     networks:
       - app-network
+
+  # --- Services SonarQube ajoutés ---
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube_app
+    ports:
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://sonar-db:5432/sonarqube
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar # <--- REMPLACER CE MOT DE PASSE
+      - SONAR_WEB_JAVAOPTS=-Xmx512m -Xms512m
+      - SONAR_SEARCH_JAVAOPTS=-Xmx512m -Xms512m
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - app-network
+    depends_on:
+      - sonar-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  sonar-db:
+    image: postgres:13
+    container_name: sonarqube_db
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar # <--- REMPLACER CE MOT DE PASSE
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonardb_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "sonar"]
+      interval: 10s
+      timeout: 5s
+      retries: 2
+  # --- Fin des services SonarQube ---
 
 networks:
   app-network:
@@ -166,3 +217,9 @@ volumes:
   mongo-answer-data:
   mysql-exam-data:
   postgres-user-data:
+  # --- Volumes SonarQube ajoutés ---
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonardb_data:
+  # --- Fin des volumes SonarQube ---

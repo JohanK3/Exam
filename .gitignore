@@ -39,7 +39,7 @@ yarn-error.log
 # build-analytics
 .build-analytics
 
-# rollup-test output
+# rollup-test.jmx output
 /modules/rollup-test/dist/
 /frontend/modules/rollup-test/dist/
 
