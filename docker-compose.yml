@@ -157,20 +157,49 @@ services:
     networks:
       - app-network
 
-  prometheus:
-    image: prom/prometheus:latest
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
+  # --- Services SonarQube ajoutés ---
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube_app # Nom du conteneur pour le rendre reconnaissable
     ports:
-      - "9090:9090"
+      - "9000:9000"
+    environment:
+      - SONAR_JDBC_URL=jdbc:postgresql://sonar-db:5432/sonarqube
+      - SONAR_JDBC_USERNAME=sonar
+      - SONAR_JDBC_PASSWORD=sonar # <--- Remplacez par votre mot de passe SonarQube DB
+      - SONAR_WEB_JAVAOPTS=-Xmx512m -Xms512m # Taille de la mémoire pour le serveur web SonarQube
+      - SONAR_SEARCH_JAVAOPTS=-Xmx512m -Xms512m # Taille de la mémoire pour Elasticsearch intégré à SonarQube
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - app-network
+    depends_on:
+      - sonar-db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  sonar-db:
+    image: postgres:13
+    container_name: sonarqube_db # Nom du conteneur pour la base de données SonarQube
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar # <--- Remplacez par votre mot de passe SonarQube DB
+      POSTGRES_DB: sonarqube
+    volumes:
+      - sonardb_data:/var/lib/postgresql/data
     networks:
       - app-network
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 3s
-      timeout: 2s
+      test: ["CMD", "pg_isready", "-U", "sonar"]
+      interval: 10s
+      timeout: 5s
       retries: 2
+  # --- Fin des services SonarQube ---
 
 networks:
   app-network:
@@ -180,4 +209,9 @@ volumes:
   mongo-answer-data:
   mysql-exam-data:
   postgres-user-data:
-  prometheus-data:
+  # --- Volumes SonarQube ajoutés ---
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_logs:
+  sonardb_data:
+  # --- Fin des volumes SonarQube ---
