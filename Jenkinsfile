@@ -182,7 +182,7 @@ pipeline {
                         dir(modulePath) {
                             echo "  -> Analyse SonarQube pour le module : ${modulePath}"
                             withSonarQubeEnv(credentialsId: env.SONAR_TOKEN_CRED_ID) {
-                                // CORRECTION ICI : Chaque paramètre -D est maintenant correctement séparé par un espace
+                                // Correction pour s'assurer que chaque paramètre -D est correctement séparé par un espace
                                 sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner " +
                                     "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')} " +
                                     "-Dsonar.sources=src/main/java " +
@@ -197,7 +197,8 @@ pipeline {
             post {
                 always {
                     echo "Vérification du Quality Gate SonarQube..."
-                    timeout(time: 10, unit: 'MINUTES') {
+                    // Augmentation du timeout pour donner plus de temps à SonarQube de traiter l'analyse
+                    timeout(time: 20, unit: 'MINUTES') { // Augmenté à 20 minutes
                         waitForQualityGate abortPipeline: true
                     }
                 }
