@@ -45,7 +45,7 @@ pipeline {
             steps {
                 echo "Récupération du code source depuis GitHub (branche sprint-3)..."
                 // Assurez-vous que 'github-credentials' est l'ID de vos identifiants GitHub dans Jenkins
-                git branch: 'sprint-3', credentialsId: 'github-credentials', url: 'https://github.com/JohanK3/Exam.git'
+                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
