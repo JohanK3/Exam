@@ -6,11 +6,11 @@ pipeline {
         // que vous avez configurés dans Jenkins > Manage Jenkins > Global Tool Configuration
         maven 'Maven3'
         jdk 'Java17'
-        // Correction ici : Le type de tool correct pour SonarQube Scanner est 'sonarRunner'.
-        // Assurez-vous que 'SonarQubeScannerCLI' est le nom exact donné
-        // dans Jenkins > Manage Jenkins > Global Tool Configuration > SonarQube Scanners
-        sonarRunner 'SonarQubeScannerCLI'
+        // La ligne 'sonarRunner 'SonarQubeScannerCLI'' a été retirée car elle causait une erreur.
+        // L'outil SonarQube Scanner sera accessible via les configurations globales de Jenkins
+        // et l'étape 'withSonarQubeEnv'.
     }
+
     environment {
         // Chemin vers votre fichier docker-compose
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
@@ -166,12 +166,8 @@ pipeline {
                             // Utilisation de withSonarQubeEnv pour injecter l'URL et le token
                             withSonarQubeEnv(credentialsId: env.SONAR_TOKEN_CRED_ID) {
                                 // Exécution du SonarScanner CLI.
-                                // -Dsonar.projectKey: Identifiant unique du projet dans SonarQube.
-                                //                   Utilise le chemin du module pour le rendre unique (ex: Exam-backend-course-service)
-                                // -Dsonar.sources: Chemin vers le code source à analyser (par défaut le répertoire courant '.')
-                                // -Dsonar.java.binaries: Chemin vers les fichiers .class compilés par Maven
-                                // -Dsonar.host.url: L'URL de votre serveur SonarQube
-                                // -Dsonar.login: Le token d'authentification (injecté par withSonarQubeEnv)
+                                // Le chemin de l'outil est résolu automatiquement via la configuration globale de Jenkins
+                                // puisque 'SONAR_SCANNER_NAME' est configuré dans 'environment'.
                                 sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner " +
                                     "-Dsonar.projectKey=Exam-${modulePath.replace('/', '-')}" + // Ex: 'Exam-backend-course-service'
                                     "-Dsonar.sources=src/main/java" +
