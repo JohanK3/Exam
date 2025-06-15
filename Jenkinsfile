@@ -118,8 +118,9 @@ pipeline {
                     echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
                     # Utiliser wait-for-it.sh ici si tu l'as téléchargé, sinon un simple sleep
                     # ./wait-for-it.sh api-gateway-service:8090 --timeout=120 -- echo "API Gateway est prête" || error "Timeout: API Gateway non disponible"
-                    sleep(time: 90, unit: 'SECONDS') // Augmenté le délai pour plus de sûreté
                 '''
+                // La commande 'sleep' est une étape Jenkins Pipeline et doit être en dehors du bloc 'sh'
+                sleep(time: 90, unit: 'SECONDS') // Augmenté le délai pour plus de sûreté
             }
         }
 
