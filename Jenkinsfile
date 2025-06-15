@@ -4,8 +4,8 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        // CORRECTION ICI : Le type d'outil correct pour SonarQube Scanner CLI est 'sonarRunner'
-        sonarRunner 'SonarQubeScannerCLI'
+        // CORRECTION ICI : Utilisation du nom complet du type d'outil pour SonarQube Scanner CLI
+        hudson.plugins.sonar.SonarRunnerInstallation 'SonarQubeScannerCLI'
     }
 
     environment {
