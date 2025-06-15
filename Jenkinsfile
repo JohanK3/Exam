@@ -4,8 +4,9 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        // CORRECTION ICI : Utilisation du nom complet du type d'outil pour SonarQube Scanner CLI
-        hudson.plugins.sonar.SonarRunnerInstallation 'SonarQubeScannerCLI'
+        // C'est le type d'outil officiel pour le SonarQube Scanner CLI.
+        // Il doit correspondre à ce que le plugin "SonarQube Scanner for Jenkins" expose.
+        sonar 'SonarQubeScannerCLI'
     }
 
     environment {
@@ -15,9 +16,9 @@ pipeline {
         ZAP_REPORT_FILE = 'zap_report.html'
         DOCKER_BUILD_ID = "${env.BUILD_ID}"
 
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
-        SONAR_HOST_URL = 'http://192.168.110.147:9000'
-        SONAR_TOKEN_CRED_ID = 'sonarqube-token'
+        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Doit correspondre au nom configuré dans Global Tool Configuration
+        SONAR_HOST_URL = 'http://192.168.110.147:9000' // L'URL de votre serveur SonarQube
+        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // L'ID des identifiants Secret text dans Jenkins
     }
 
     stages {
