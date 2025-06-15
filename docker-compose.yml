@@ -4,25 +4,26 @@ services:
   # Service Discovery
   eureka-service:
     build:
-      context: backend
-      dockerfile: eureka-service/Dockerfile # Chemin corrigé
-    image: exam-eureka-service:latest # Ajout d'un nom d'image pour faciliter le tagging/push
+      context: ./backend
+      dockerfile: eureka-service/Dockerfile
     ports:
       - "8761:8761"
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     networks:
       - app-network
 
   # API Gateway
   api-gateway-service:
     build:
-      context: backend
-      dockerfile: api-gateway-service/Dockerfile # Chemin corrigé
-    image: exam-api-gateway-service:latest # Ajout d'un nom d'image
+      context: ./backend
+      dockerfile: api-gateway-service/Dockerfile
     ports:
       - "8090:8090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     depends_on:
       - eureka-service
     networks:
@@ -31,15 +32,15 @@ services:
   # Services métiers avec leurs bases de données
   answer-service:
     build:
-      context: backend
-      dockerfile: answer-service/Dockerfile # Chemin corrigé
-    image: exam-answer-service:latest # Ajout d'un nom d'image
+      context: ./backend
+      dockerfile: answer-service/Dockerfile
     ports:
       - "8083:8083"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     depends_on:
       - mongo-answer-db
       - eureka-service
@@ -61,18 +62,18 @@ services:
 
   exam-service:
     build:
-      context: backend
-      dockerfile: exam-service/Dockerfile # Chemin corrigé
-    image: exam-exam-service:latest # Ajout d'un nom d'image
+      context: ./backend
+      dockerfile: exam-service/Dockerfile
     ports:
       - "8082:8082"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/examdb
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -81,18 +82,18 @@ services:
 
   course-service:
     build:
-      context: backend
-      dockerfile: course-service/Dockerfile # Chemin corrigé
-    image: exam-course-service:latest # Ajout d'un nom d'image
+      context: ./backend
+      dockerfile: course-service/Dockerfile
     ports:
       - "8081:8081"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/examdb
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-exam-db:3306/${MYSQL_DATABASE:-examdb}
+      - SPRING_DATASOURCE_USERNAME=${MYSQL_USER:-root}
+      - SPRING_DATASOURCE_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -103,12 +104,12 @@ services:
     image: mysql:8.0
     container_name: mysql-exam-db
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: examdb
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-examdb}
     volumes:
       - mysql-exam-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-root}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -117,18 +118,18 @@ services:
 
   user-service:
     build:
-      context: backend
-      dockerfile: user-service/Dockerfile # Chemin corrigé
-    image: exam-user-service:latest # Ajout d'un nom d'image
+      context: ./backend
+      dockerfile: user-service/Dockerfile
     ports:
       - "8084:8080"
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user-db:5432/userdb
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres-user-db:5432/${POSTGRES_DB:-userdb}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-postgres}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-postgres}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m # Ajouté : Limite la RAM de la JVM
     depends_on:
       - postgres-user-db
       - eureka-service
@@ -139,13 +140,13 @@ services:
     image: postgres:13
     container_name: postgres-user-db
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: userdb
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-userdb}
     volumes:
       - postgres-user-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "userdb"]
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -155,9 +156,8 @@ services:
   # Frontend Angular
   frontend:
     build:
-      context: frontend # Chemin corrigé: "frontend" si Dockerfile est dans le sous-dossier frontend
-      dockerfile: Dockerfile # C'est juste "Dockerfile" si le contexte est le dossier frontend
-    image: exam-frontend:latest # Ajout d'un nom d'image
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "4200:80"
     depends_on:
@@ -165,24 +165,24 @@ services:
     networks:
       - app-network
 
-  # --- Services SonarQube ajoutés ---
+  # SonarQube and its PostgreSQL Database
   sonarqube:
-    image: sonarqube:lts-community
+    image: sonarqube:lts-community # Utilise la version LTS Communautaire pour plus de stabilité
     container_name: sonarqube_app
     ports:
-      - "9000:9000"
+      - "9000:9000" # Interface Web de SonarQube
     environment:
       - SONAR_JDBC_URL=jdbc:postgresql://sonar-db:5432/sonarqube
       - SONAR_JDBC_USERNAME=sonar
-      - SONAR_JDBC_PASSWORD=sonar # <--- REMPLACER CE MOT DE PASSE
-      - SONAR_WEB_JAVAOPTS=-Xmx512m -Xms512m
-      - SONAR_SEARCH_JAVAOPTS=-Xmx512m -Xms512m
+      - SONAR_JDBC_PASSWORD=your_sonar_db_password # <<--- TRÈS IMPORTANT : Change ce mot de passe !
+      - SONAR_WEB_JAVAOPTS=-Xmx512m -Xms512m # Ajuste la mémoire si ta VM est petite (ex: -Xmx256m si <2GB RAM)
+      - SONAR_SEARCH_JAVAOPTS=-Xmx512m -Xms512m # Pour le processus de recherche d'Elasticsearch intégré
     volumes:
-      - sonarqube_data:/opt/sonarqube/data
-      - sonarqube_extensions:/opt/sonarqube/extensions
-      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_data:/opt/sonarqube/data # Persistance des données de SonarQube
+      - sonarqube_extensions:/opt/sonarqube/extensions # Persistance des plugins
+      - sonarqube_logs:/opt/sonarqube/logs # Persistance des logs
     networks:
-      - app-network
+      - app-network # Utilise le même réseau que tes autres services
     depends_on:
       - sonar-db
     healthcheck:
@@ -196,18 +196,17 @@ services:
     container_name: sonarqube_db
     environment:
       POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonar # <--- REMPLACER CE MOT DE PASSE
+      POSTGRES_PASSWORD: your_sonar_db_password # <<--- TRÈS IMPORTANT : Doit correspondre au mot de passe ci-dessus !
       POSTGRES_DB: sonarqube
     volumes:
       - sonardb_data:/var/lib/postgresql/data
     networks:
-      - app-network
+      - app-network # Utilise le même réseau
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "sonar"]
       interval: 10s
       timeout: 5s
-      retries: 2
-  # --- Fin des services SonarQube ---
+      retries: 5
 
 networks:
   app-network:
@@ -217,9 +216,7 @@ volumes:
   mongo-answer-data:
   mysql-exam-data:
   postgres-user-data:
-  # --- Volumes SonarQube ajoutés ---
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:
   sonardb_data:
-  # --- Fin des volumes SonarQube ---
