@@ -4,9 +4,9 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        // CORRECTION ICI : Utilisation du nom complet de la classe du plugin pour SonarQube Scanner CLI
-        // C'est le nom exact listé par Jenkins comme un type d'outil valide.
-        hudson.plugins.sonar.SonarRunnerInstallation 'SonarQubeScannerCLI'
+        // Suppression de la déclaration de l'outil SonarQube Scanner d'ici.
+        // La fonction `tool env.SONAR_SCANNER_NAME` dans les étapes du pipeline
+        // trouvera l'outil via sa configuration dans 'Global Tool Configuration'.
     }
 
     environment {
