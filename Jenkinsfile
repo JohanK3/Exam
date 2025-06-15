@@ -4,9 +4,9 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        // C'est le type d'outil officiel pour le SonarQube Scanner CLI.
-        // Il doit correspondre à ce que le plugin "SonarQube Scanner for Jenkins" expose.
-        sonar 'SonarQubeScannerCLI'
+        // CORRECTION ICI : Utilisation du nom complet de la classe du plugin pour SonarQube Scanner CLI
+        // C'est le nom exact listé par Jenkins comme un type d'outil valide.
+        hudson.plugins.sonar.SonarRunnerInstallation 'SonarQubeScannerCLI'
     }
 
     environment {
@@ -116,7 +116,7 @@ pipeline {
 
                     echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
                     ./wait-for-it.sh ${ZAP_TARGET_URL#http://} --timeout=300 -- echo "Services prêts" || { echo "Timeout: services non disponibles! Le build échoue."; exit 1; }
-
+                    
                     echo "Attente de la disponibilité de SonarQube (${SONAR_HOST_URL})..."
                     ./wait-for-it.sh ${SONAR_HOST_URL#http://} --timeout=300 -- echo "SonarQube est prêt!" || { echo "Timeout: SonarQube non disponible!"; exit 1; }
                 '''
