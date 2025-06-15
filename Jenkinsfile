@@ -29,7 +29,8 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                git branch: 'sprint-1', url: 'https://github.com/JohanK3/Exam.git'
+                // Modifié : Clonage de la branche 'sprint-3' avec les identifiants
+                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git' 
             }
         }
 
@@ -115,6 +116,7 @@ pipeline {
                 sh '''
                     echo "Démarrage des services applicatifs via Docker Compose..."
                     COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
+
                     echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
                     # Utiliser wait-for-it.sh ici si tu l'as téléchargé, sinon un simple sleep
                     # ./wait-for-it.sh api-gateway-service:8090 --timeout=120 -- echo "API Gateway est prête" || error "Timeout: API Gateway non disponible"
