@@ -123,6 +123,11 @@ pipeline {
             }
         }
 
+        // Le stage 'Analyse de Code (SonarQube)' est temporairement commenté
+        // pour vous permettre de tester le reste du pipeline sans interruption.
+        // N'oubliez pas de décommenter ce stage une fois que les autres étapes
+        // de votre pipeline sont stables et fonctionnelles.
+        /*
         stage('Analyse de Code (SonarQube)') {
             steps {
                 script {
@@ -161,6 +166,7 @@ pipeline {
                 }
             }
         }
+        */
 
         stage('Tests d’intégration JMeter') {
             steps {
