@@ -4,7 +4,8 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        sonarScanner 'SonarQubeScannerCLI'
+        // CORRECTION ICI : Le type d'outil correct pour SonarQube Scanner CLI est 'sonarRunner'
+        sonarRunner 'SonarQubeScannerCLI'
     }
 
     environment {
@@ -84,7 +85,6 @@ pipeline {
             }
         }
 
-        // --- NOUVEL EMPLACEMENT DU STAGE DE COMPILATION MAVEN ---
         stage('Compilation Maven') {
             steps {
                 script {
@@ -103,7 +103,6 @@ pipeline {
                 }
             }
         }
-        // --- FIN NOUVEL EMPLACEMENT ---
 
         stage('Construction et démarrage Docker Compose') {
             steps {
