@@ -9,12 +9,11 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://localhost:8090' // Revenir à localhost
+        ZAP_TARGET_URL = 'http://localhost:8090'
         ZAP_REPORT_FILE = 'zap_report.json'
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
-        // DEEPSOURCE_TOKEN_CRED_ID = 'deepsource-token'
     }
 
     stages {
