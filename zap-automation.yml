@@ -7,6 +7,8 @@ env:
   parameters:
     failOnError: true
     progressToStdout: false
+  proxy:
+    port: 8091
 jobs:
   - parameters:
       enableTags: false
