@@ -135,7 +135,14 @@ pipeline {
         always {
             echo "Arrêt des services Docker Compose et nettoyage..."
             sh '''
-                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local
+                # Arrêter et supprimer tous les conteneurs du projet
+                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local -v
+                # Supprimer tous les conteneurs ZAP orphelins
+                docker ps -q -f name=zap | xargs -r docker rm -f
+                # Nettoyer les réseaux Docker
+                docker network prune -f
+                # Supprimer les fichiers générés
+                rm -f zap_report.json zap_out.json
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log
                 rm -rf .trivycache
             '''
