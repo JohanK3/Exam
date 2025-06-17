@@ -9,13 +9,11 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://api-gateway-service:8090' // Utilise le nom du service Docker
+        ZAP_TARGET_URL = 'http://localhost:8090' // Revenir à localhost
         ZAP_REPORT_FILE = 'zap_report.json'
-        // Variables pour SonarQube (commentées mais conservées)
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
-        // Variable pour DeepSource (commentée mais prête)
         // DEEPSOURCE_TOKEN_CRED_ID = 'deepsource-token'
     }
 
@@ -60,66 +58,6 @@ pipeline {
                 }
             }
         }
-
-        // Stage DeepSource (commenté, prêt à être décommenté plus tard)
-        /*
-        stage('Analyse de code (DeepSource)') {
-            steps {
-                withCredentials([string(credentialsId: env.DEEPSOURCE_TOKEN_CRED_ID, variable: 'DEEPSOURCE_TOKEN')]) {
-                    sh '''
-                        deepsource report --analyzer java --analyzer javascript \\
-                        --commit-hash ${GIT_COMMIT} \\
-                        --token ${DEEPSOURCE_TOKEN}
-                    '''
-                }
-            }
-        }
-        */
-
-        // Stage SonarQube (déjà commenté, conservé tel quel)
-        /*
-        stage('Analyse de Code (SonarQube)') {
-            steps {
-                script {
-                    def modulesToScan = [
-                        'backend/common-exam',
-                        'backend/common-service',
-                        'backend/common-student',
-                        'backend/eureka-service',
-                        'backend/api-gateway-service',
-                        'backend/answer-service',
-                        'backend/exam-service',
-                        'backend/course-service',
-                        'backend/user-service'
-                    ]
-                    for (modulePath in modulesToScan) {
-                        dir(modulePath) {
-                            echo "Lancement de l'analyse SonarQube pour le module : ${modulePath}"
-                            withSonarQubeEnv(credentialsId: env.SONAR_TOKEN_CRED_ID) {
-                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner " +
-                                    "-Dsonar.projectKey=${modulePath.replace('/', '-')}" +
-                                    "-Dsonar.sources=src/main/java" +
-                                    "-Dsonar.java.binaries=target/classes" +
-                                    "-Dsonar.host.url=${env.SONAR_HOST_URL}" +
-                                    "-Dsonar.login=${env.SONAR_AUTH_TOKEN}"
-                            }
-                        }
-                    }
-                }
-            }
-            post {
-                always {
-                    echo "Vérification du Quality Gate SonarQube..."
-                    timeout(time: 10, unit: 'MINUTES') {
-                        waitForQualityGate abortPipeline: true
-                    }
-                }
-                failure {
-                    echo "Le Quality Gate SonarQube a échoué. Vérifiez les rapports sur SonarQube."
-                }
-            }
-        }
-        */
 
         stage('Construction des Images Docker') {
             steps {
@@ -178,20 +116,9 @@ pipeline {
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
-                    def dockerImages = [
-                        'exam-eureka-service',
-                        'exam-api-gateway-service',
-                        'exam-answer-service',
-                        'exam-exam-service',
-                        'exam-course-service',
-                        'exam-user-service',
-                        'exam-frontend'
-                    ]
-                    for (image in dockerImages) {
-                        echo "Lancement du scan Trivy pour l'image : ${image}:latest"
-                        sh "trivy image --severity HIGH,CRITICAL --format json --cache-dir .trivycache ${image}:latest > trivy-${image.replace('exam-', '')}.json"
-                    }
                     sh '''
+                        chmod +x trivy_scan.sh
+                        ./trivy_scan.sh
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "Erreur : Vulnérabilités critiques détectées dans $report"
