@@ -56,4 +56,4 @@ baseline.json
 .history
 
 # Husky
-.husky/_
+.husky/_zap_report.json
