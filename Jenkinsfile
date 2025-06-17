@@ -4,20 +4,19 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
-        // Assure-toi que 'SonarQubeScannerCLI' est le nom que tu as donné dans
-        // Jenkins > Manage Jenkins > Global Tool Configuration > SonarQube Scanners
     }
 
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://localhost:8090'   // URL de votre application à scanner (via l'hôte Docker)
-        ZAP_REPORT_FILE = 'zap_report.json'        // Nom du rapport ZAP (maintenant JSON)
-
-        // --- Variables d'environnement pour SonarQube ---
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Le nom configuré dans Jenkins Global Tool Configuration
-        SONAR_HOST_URL = 'http://localhost:9000'   // L'URL de ton serveur SonarQube (qui tourne via Docker Compose sur l'hôte)
-        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // L'ID de tes identifiants Jenkins (Secret text)
+        ZAP_TARGET_URL = 'http://api-gateway-service:8090' // Utilise le nom du service Docker
+        ZAP_REPORT_FILE = 'zap_report.json'
+        // Variables pour SonarQube (commentées mais conservées)
+        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
+        // Variable pour DeepSource (commentée mais prête)
+        // DEEPSOURCE_TOKEN_CRED_ID = 'deepsource-token'
     }
 
     stages {
@@ -29,8 +28,7 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                // Modifié : Clonage de la branche 'sprint-3' avec les identifiants
-                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git' 
+                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
@@ -48,17 +46,37 @@ pipeline {
                         'backend/course-service',
                         'backend/user-service'
                     ]
+                    def parallelJobs = [:]
                     for (module in modules) {
-                        dir(module) {
-                            echo "Exécution de 'mvn clean install -DskipTests' pour le module : ${module}"
-                            sh 'mvn clean install -DskipTests'
+                        def moduleName = module
+                        parallelJobs[moduleName] = {
+                            dir(moduleName) {
+                                echo "Exécution de 'mvn clean install -DskipTests' pour le module : ${moduleName}"
+                                sh 'mvn clean install -DskipTests'
+                            }
                         }
                     }
+                    parallel parallelJobs
                 }
             }
         }
 
-        // Le stage 'Analyse de Code (SonarQube)' est commenté comme demandé
+        // Stage DeepSource (commenté, prêt à être décommenté plus tard)
+        /*
+        stage('Analyse de code (DeepSource)') {
+            steps {
+                withCredentials([string(credentialsId: env.DEEPSOURCE_TOKEN_CRED_ID, variable: 'DEEPSOURCE_TOKEN')]) {
+                    sh '''
+                        deepsource report --analyzer java --analyzer javascript \\
+                        --commit-hash ${GIT_COMMIT} \\
+                        --token ${DEEPSOURCE_TOKEN}
+                    '''
+                }
+            }
+        }
+        */
+
+        // Stage SonarQube (déjà commenté, conservé tel quel)
         /*
         stage('Analyse de Code (SonarQube)') {
             steps {
@@ -74,7 +92,6 @@ pipeline {
                         'backend/course-service',
                         'backend/user-service'
                     ]
-
                     for (modulePath in modulesToScan) {
                         dir(modulePath) {
                             echo "Lancement de l'analyse SonarQube pour le module : ${modulePath}"
@@ -118,11 +135,19 @@ pipeline {
                     COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
 
                     echo "Attente de la disponibilité de l'API Gateway (${ZAP_TARGET_URL})..."
-                    # Utiliser wait-for-it.sh ici si tu l'as téléchargé, sinon un simple sleep
-                    # ./wait-for-it.sh api-gateway-service:8090 --timeout=120 -- echo "API Gateway est prête" || error "Timeout: API Gateway non disponible"
+                    for i in {1..12}; do
+                        if curl --output /dev/null --silent --head --fail ${ZAP_TARGET_URL}/actuator/health; then
+                            echo "API Gateway est prête."
+                            break
+                        fi
+                        echo "En attente de ${ZAP_TARGET_URL}..."
+                        sleep 10
+                    done
+                    if [ $i -eq 12 ]; then
+                        echo "Erreur : Timeout, API Gateway non disponible."
+                        exit 1
+                    fi
                 '''
-                // La commande 'sleep' est une étape Jenkins Pipeline et doit être en dehors du bloc 'sh'
-                sleep(time: 90, unit: 'SECONDS') // Augmenté le délai pour plus de sûreté
             }
         }
 
@@ -136,12 +161,16 @@ pipeline {
         stage('Scan de sécurité OWASP ZAP') {
             steps {
                 script {
-                    echo "Lancement du scan ZAP sur ${ZAP_TARGET_URL}..."
+                    echo "Lancement du scan ZAP sur ${env.ZAP_TARGET_URL}..."
                     sh '''
                         chmod +x zap_scan.sh
                         ./zap_scan.sh ${ZAP_TARGET_URL} ${ZAP_REPORT_FILE}
+                        if jq '.alerts[] | select(.risk == "High" or .risk == "Critical")' "${ZAP_REPORT_FILE}" | grep -q .; then
+                            echo "Erreur : Vulnérabilités critiques détectées dans ${ZAP_REPORT_FILE}"
+                            exit 1
+                        fi
                     '''
-                    archiveArtifacts artifacts: '${ZAP_REPORT_FILE}', allowEmptyArchive: true
+                    archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: false
                 }
             }
         }
@@ -160,11 +189,18 @@ pipeline {
                     ]
                     for (image in dockerImages) {
                         echo "Lancement du scan Trivy pour l'image : ${image}:latest"
-                        // Ajout de --cache-dir pour forcer Trivy à utiliser un cache dans le workspace
-                        sh "trivy image --severity HIGH,CRITICAL --format json --cache-dir .trivycache ${image}:latest > trivy-${image.replace('exam-', '')}.json || true"
+                        sh "trivy image --severity HIGH,CRITICAL --format json --cache-dir .trivycache ${image}:latest > trivy-${image.replace('exam-', '')}.json"
                     }
+                    sh '''
+                        for report in trivy-*.json; do
+                            if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
+                                echo "Erreur : Vulnérabilités critiques détectées dans $report"
+                                exit 1
+                            fi
+                        done
+                    '''
+                    archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: false
                 }
-                archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: true
             }
         }
     }
@@ -173,10 +209,9 @@ pipeline {
         always {
             echo "Arrêt des services Docker Compose et nettoyage..."
             sh '''
-                # Arrêter les services Docker Compose
-                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down
-                # Archiver les logs de Docker Compose pour le débogage
+                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local
                 COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} logs > docker-compose.log
+                rm -rf .trivycache
             '''
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
             archiveArtifacts artifacts: '**/target/*.jar', allowEmptyArchive: true
