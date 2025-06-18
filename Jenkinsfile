@@ -11,7 +11,7 @@ pipeline {
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://localhost:8090'    // URL de votre application à scanner (via l'hôte Docker)
+        ZAP_TARGET_URL = 'http://localhost:8090'    // URL de votre application à scanner (via l’hôte Docker)
         ZAP_REPORT_FILE = 'zap_report.json'         // Nom du rapport ZAP (maintenant JSON)
 
         // --- Variables d'environnement pour SonarQube (si vous le réactivez) ---
@@ -120,10 +120,11 @@ pipeline {
                         'exam-user-service',
                         'exam-frontend'
                     ]
-/*
+
+                    /* Commenté : Push vers Docker Hub
                     // S'authentifier à Docker Hub
                     withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CREDS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh "echo \"${DOCKER_PASSWORD}\" | docker login -u ${DOCKER_USERNAME} --password-stdin"
+                        sh "echo \"${DOCKER_PASSWORD}\" | docker login -u \"${DOCKER_USERNAME}\" --password-stdin"
                     }
 
                     for (image in dockerImages) {
@@ -133,11 +134,12 @@ pipeline {
                         echo "Pushing image ${fullImageName} to Docker Hub"
                         sh "docker push ${fullImageName}"
                     }
+                    echo "Images Docker poussées vers Docker Hub."
+                    */
                 }
-                echo "Images Docker poussées vers Docker Hub."
             }
         }
-*/
+
         stage('Démarrage des Services Applicatifs Docker Compose') {
             steps {
                 sh '''
@@ -184,7 +186,8 @@ pipeline {
                 }
             }
         }
-/*
+
+        /* Commenté : Scan de sécurité Trivy
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
@@ -202,12 +205,9 @@ pipeline {
                 }
             }
         }
+        */
 
-        // --- NOUVELLES ÉTAPES POUR LE DÉPLOIEMENT KUBERNETES (Sprint 2 - US9) ---
-        // Vous devrez créer le dossier kubernetes/manifests dans votre dépôt Git
-        // et y placer les fichiers YAML pour vos deployments, services, etc.
-        // Les images dans ces manifests devront pointer vers votre Docker Hub (ex: johankassa/exam-eureka-service:latest)
-
+        /* Commenté : Préparation du Namespace Kubernetes
         stage('Préparation du Namespace Kubernetes') {
             steps {
                 withKubeConfig(credentialsId: 'kubeconfig-sfm-connect') { // Assurez-vous d'avoir cet ID de creds dans Jenkins
@@ -216,7 +216,9 @@ pipeline {
                 }
             }
         }
+        */
 
+        /* Commenté : Déploiement des Microservices sur Kubernetes
         stage('Déploiement des Microservices sur Kubernetes') {
             steps {
                 withKubeConfig(credentialsId: 'kubeconfig-sfm-connect') {
@@ -229,10 +231,9 @@ pipeline {
                 }
             }
         }
-
-        // --- Fin des NOUVELLES ÉTAPES ---
+        */
     }
-*/
+
     post {
         always {
             echo "Arrêt des services Docker Compose et nettoyage..."
