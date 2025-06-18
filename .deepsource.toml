@@ -1,0 +1,15 @@
+# .deepsource.toml
+version = 1
+
+[[analyzers]]
+name = "java" # Pour vos microservices Java
+enabled = true
+# Plus d'options ici si nécessaire, comme les chemins à inclure/exclure
+
+[[analyzers]]
+name = "javascript" # Pour votre frontend Angular
+enabled = true
+
+# Ajoutez d'autres analyseurs pertinents (docker, security, etc.)
+# Consultez la documentation DeepSource pour la liste complète des analyseurs :
+# https://deepsource.io/docs/analyzers/
