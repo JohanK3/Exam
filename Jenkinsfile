@@ -116,8 +116,8 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        chmod +x scan_trivy.sh
-                        ./scan_trivy.sh
+                        chmod +x trivy_scan.sh
+                        ./trivy_scan.sh
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "Erreur : Vulnérabilités critiques détectées dans $report"
