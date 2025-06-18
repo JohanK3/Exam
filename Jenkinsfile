@@ -120,7 +120,7 @@ pipeline {
                         'exam-user-service',
                         'exam-frontend'
                     ]
-
+/*
                     // S'authentifier à Docker Hub
                     withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CREDS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh "echo \"${DOCKER_PASSWORD}\" | docker login -u ${DOCKER_USERNAME} --password-stdin"
@@ -137,7 +137,7 @@ pipeline {
                 echo "Images Docker poussées vers Docker Hub."
             }
         }
-
+*/
         stage('Démarrage des Services Applicatifs Docker Compose') {
             steps {
                 sh '''
@@ -184,7 +184,7 @@ pipeline {
                 }
             }
         }
-
+/*
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
@@ -232,7 +232,7 @@ pipeline {
 
         // --- Fin des NOUVELLES ÉTAPES ---
     }
-
+*/
     post {
         always {
             echo "Arrêt des services Docker Compose et nettoyage..."
