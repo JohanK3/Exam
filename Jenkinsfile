@@ -36,7 +36,7 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                git branch: 'sprint-3', credentialsId: 'github-credentials', url: 'https://github.com/JohanK3/Exam.git'
+                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
