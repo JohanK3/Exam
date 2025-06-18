@@ -4,16 +4,27 @@ pipeline {
     tools {
         maven 'Maven3'
         jdk 'Java17'
+        // Assurez-vous que 'SonarQubeScannerCLI' est le nom que vous avez donné dans Jenkins Global Tool Configuration
+        // sonarScanner 'SonarQubeScannerCLI' // Décommentez si vous utilisez SonarQubeScannerCLI dans ce pipeline
     }
 
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
-        ZAP_TARGET_URL = 'http://localhost:8090'
-        ZAP_REPORT_FILE = 'zap_report.json'
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
-        SONAR_HOST_URL = 'http://localhost:9000'
-        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
+        ZAP_TARGET_URL = 'http://localhost:8090'    // URL de votre application à scanner (via l'hôte Docker)
+        ZAP_REPORT_FILE = 'zap_report.json'         // Nom du rapport ZAP (maintenant JSON)
+
+        // --- Variables d'environnement pour SonarQube (si vous le réactivez) ---
+        // SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
+        // SONAR_HOST_URL = 'http://localhost:9000'
+        // SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
+
+        // --- Variables pour Docker Hub ---
+        DOCKER_HUB_REPO = 'johankassa' // REMPLACEZ PAR VOTRE NOM D'UTILISATEUR DOCKER HUB !
+        DOCKER_HUB_CREDS_ID = 'docker-hub-credentials' // ID des identifiants Docker Hub dans Jenkins
+
+        // --- NOUVELLE VARIABLE POUR DEEPSOURCE ---
+        DEEPSOURCE_TOKEN_CRED_ID = 'deepsource-access-token' // ID des identifiants DeepSource dans Jenkins
     }
 
     stages {
@@ -58,10 +69,72 @@ pipeline {
             }
         }
 
-        stage('Construction des Images Docker') {
+        // --- NOUVELLE ÉTAPE POUR DEEPSOURCE ---
+        stage('Analyse Statique de Code (DeepSource)') {
             steps {
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
-                echo "Images Docker de l'application construites."
+                script {
+                    echo "Installation du CLI DeepSource..."
+                    // Téléchargement et installation du CLI DeepSource pour Linux
+                    // Assurez-vous que l'agent Jenkins a les permissions pour exécuter curl et mv
+                    sh 'curl https://deepsource.io/cli | sh'
+                    sh 'mv deepsource /usr/local/bin/' // Déplace le CLI dans un répertoire du PATH
+
+                    echo "Authentification du CLI DeepSource..."
+                    // Utilise les identifiants Secret Text de Jenkins pour récupérer le token
+                    withCredentials([string(credentialsId: env.DEEPSOURCE_TOKEN_CRED_ID, variable: 'DEEPSOURCE_ACCESS_TOKEN')]) {
+                        sh "deepsource auth login --token ${DEEPSOURCE_ACCESS_TOKEN}"
+                    }
+
+                    echo "Lancement de l'analyse DeepSource..."
+                    // Exécute l'analyse DeepSource depuis la racine du dépôt Git
+                    // DeepSource lira le fichier .deepsource.toml à la racine de votre dépôt
+                    sh 'deepsource run'
+
+                    echo "Attente de la complétion de l'analyse DeepSource et vérification du Quality Gate..."
+                    // 'deepsource status --wait' attend que l'analyse soit terminée.
+                    // '--timeout 600' donne 10 minutes (600 secondes) maximum pour l'analyse.
+                    // Le pipeline échouera si le Quality Gate de DeepSource n'est pas satisfait.
+                    sh 'deepsource status --wait --timeout 600'
+                }
+            }
+            post {
+                failure {
+                    echo "Le Quality Gate DeepSource a échoué. Veuillez vérifier les détails sur votre tableau de bord DeepSource."
+                }
+            }
+        }
+        // --- FIN DE L'ÉTAPE DEEPSOURCE ---
+
+        stage('Construction et Push des Images Docker sur Docker Hub') {
+            steps {
+                script {
+                    sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
+                    echo "Images Docker de l'application construites."
+
+                    def dockerImages = [
+                        'exam-eureka-service',
+                        'exam-api-gateway-service',
+                        'exam-answer-service',
+                        'exam-exam-service',
+                        'exam-course-service',
+                        'exam-user-service',
+                        'exam-frontend'
+                    ]
+
+                    // S'authentifier à Docker Hub
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CREDS_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh "echo \"${DOCKER_PASSWORD}\" | docker login -u ${DOCKER_USERNAME} --password-stdin"
+                    }
+
+                    for (image in dockerImages) {
+                        def fullImageName = "${env.DOCKER_HUB_REPO}/${image}:latest"
+                        echo "Tagging image ${image}:latest as ${fullImageName}"
+                        sh "docker tag ${image}:latest ${fullImageName}"
+                        echo "Pushing image ${fullImageName} to Docker Hub"
+                        sh "docker push ${fullImageName}"
+                    }
+                }
+                echo "Images Docker poussées vers Docker Hub."
             }
         }
 
@@ -129,6 +202,35 @@ pipeline {
                 }
             }
         }
+
+        // --- NOUVELLES ÉTAPES POUR LE DÉPLOIEMENT KUBERNETES (Sprint 2 - US9) ---
+        // Vous devrez créer le dossier kubernetes/manifests dans votre dépôt Git
+        // et y placer les fichiers YAML pour vos deployments, services, etc.
+        // Les images dans ces manifests devront pointer vers votre Docker Hub (ex: johankassa/exam-eureka-service:latest)
+
+        stage('Préparation du Namespace Kubernetes') {
+            steps {
+                withKubeConfig(credentialsId: 'kubeconfig-sfm-connect') { // Assurez-vous d'avoir cet ID de creds dans Jenkins
+                    echo "Création ou vérification du namespace Kubernetes : sfm-connect"
+                    sh "kubectl create namespace sfm-connect --dry-run=client -o yaml | kubectl apply -f -"
+                }
+            }
+        }
+
+        stage('Déploiement des Microservices sur Kubernetes') {
+            steps {
+                withKubeConfig(credentialsId: 'kubeconfig-sfm-connect') {
+                    echo "Déploiement des manifests Kubernetes depuis : kubernetes/manifests"
+                    sh "kubectl apply -f kubernetes/manifests --namespace sfm-connect"
+
+                    echo "Attente de la disponibilité des déploiements Kubernetes..."
+                    sh "kubectl rollout status deployment/api-gateway-service --namespace sfm-connect --timeout=5m"
+                    echo "Déploiements Kubernetes terminés."
+                }
+            }
+        }
+
+        // --- Fin des NOUVELLES ÉTAPES ---
     }
 
     post {
