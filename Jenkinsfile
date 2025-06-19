@@ -26,7 +26,22 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git', shallow: true
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/sprint-3']],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/JohanK3/Exam.git',
+                            credentialsId: 'github'
+                        ]],
+                        extensions: [[
+                            $class: 'CloneOption',
+                            shallow: true,
+                            depth: 1,
+                            timeout: 10
+                        ]]
+                    ])
+                }
             }
         }
 
