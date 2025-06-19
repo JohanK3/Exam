@@ -26,22 +26,7 @@ pipeline {
 
         stage('Récupération du code source') {
             steps {
-                script {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: '*/sprint-3']],
-                        userRemoteConfigs: [[
-                            url: 'https://github.com/JohanK3/Exam.git',
-                            credentialsId: 'github'
-                        ]],
-                        extensions: [[
-                            $class: 'CloneOption',
-                            shallow: true,
-                            depth: 1,
-                            timeout: 10
-                        ]]
-                    ])
-                }
+                git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
@@ -132,8 +117,8 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        chmod +x scan_trivy.sh
-                        ./scan_trivy.sh
+                        chmod +x trivy_scan.sh
+                        ./trivy_scan.sh
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "Erreur : Vulnérabilités critiques détectées dans $report"
