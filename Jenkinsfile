@@ -30,6 +30,26 @@ pipeline {
             }
         }
 
+        stage('Linting des Dockerfiles') {
+            steps {
+                script {
+                    def dockerfiles = [
+                        'backend/eureka-service/Dockerfile',
+                        'backend/api-gateway-service/Dockerfile',
+                        'backend/answer-service/Dockerfile',
+                        'backend/exam-service/Dockerfile',
+                        'backend/course-service/Dockerfile',
+                        'backend/user-service/Dockerfile',
+                        'frontend/Dockerfile'
+                    ]
+                    for (dockerfile in dockerfiles) {
+                        echo "Lancement du linting pour ${dockerfile}"
+                        sh "docker run --rm -i hadolint/hadolint < ${dockerfile} || echo 'Problèmes détectés dans ${dockerfile}, vérifiez le rapport.'"
+                    }
+                }
+            }
+        }
+
         stage('Compilation Maven') {
             steps {
                 script {
