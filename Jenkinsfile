@@ -50,6 +50,13 @@ pipeline {
             }
         }
 
+        stage('Validation docker-compose') {
+            steps {
+                echo "Validation de la syntaxe de ${DOCKER_COMPOSE_FILE}"
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} config --quiet || echo "Erreur dans la validation de ${DOCKER_COMPOSE_FILE}" || true'
+            }
+        }
+
         stage('Compilation Maven') {
             steps {
                 script {
@@ -106,6 +113,13 @@ pipeline {
                         exit 1
                     fi
                 '''
+            }
+        }
+
+        stage('Tests d’intégration JMeter') {
+            steps {
+                sh "${JMETER_HOME}/bin/jmeter -n -t Test\\ Integration.jmx -l integration_results.jtl -e -o jmeter-integration-report"
+                archiveArtifacts artifacts: 'integration_results.jtl,jmeter-integration-report/**', allowEmptyArchive: true
             }
         }
 
