@@ -19,7 +19,7 @@ pipeline {
     }
 
     stages {
-        stage('Nettoyage de l'espace de travail') {
+        stage('Nettoyage de l’espace de travail') {
             steps {
                 cleanWs()
             }
