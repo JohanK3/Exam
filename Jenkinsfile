@@ -15,6 +15,8 @@ pipeline {
         SONAR_HOST_URL = 'http://localhost:9000'
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
         // DEEPSOURCE_TOKEN_CRED_ID = 'deepsource-token'
+        DOCKER_HUB_USER = 'johankarl'
+        DOCKER_HUB_CRED_ID = 'dockerhub'
     }
 
     stages {
@@ -93,6 +95,32 @@ pipeline {
             }
         }
 
+        stage('Publication sur Docker Hub') {
+            steps {
+                script {
+                    def dockerImages = [
+                        'exam-eureka-service',
+                        'exam-api-gateway-service',
+                        'exam-answer-service',
+                        'exam-exam-service',
+                        'exam-course-service'
+                        'exam-user-service',
+                        'exam-frontend'
+                    ]
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh "echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin"
+                        for (image in dockerImages) {
+                            def fullImageName = "${env.DOCKER_HUB_USER}/${image}:${BUILD_NUMBER}"
+                            sh "docker tag ${image}:latest ${fullImageName}"
+                            sh "docker push ${fullImageName}"
+                            echo "Image ${fullImageName} publiée sur Docker Hub."
+                        
+                        }
+                    }
+                }
+            }
+        }
+        
         stage('Démarrage des Services Applicatifs Docker Compose') {
             steps {
                 sh '''
