@@ -103,7 +103,7 @@ pipeline {
                         'exam-api-gateway-service',
                         'exam-answer-service',
                         'exam-exam-service',
-                        'exam-course-service'
+                        'exam-course-service',
                         'exam-user-service',
                         'exam-frontend'
                     ]
