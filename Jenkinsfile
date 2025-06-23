@@ -119,12 +119,12 @@ pipeline {
                     )]) {
                         sh '''
                             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                            
+
                             # Liste des services custom à pousser
                             for service in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
                                 original_image="exam-${service}"
                                 new_image="$DOCKER_USERNAME/exam-${service}"
-                                
+
                                 docker tag "$original_image" "$new_image"
                                 docker push "$new_image" || {
                                     echo "Échec du push pour $new_image"
@@ -132,7 +132,7 @@ pipeline {
                                 }
                                 echo "Image $new_image publiée avec succès"
                             done
-                            
+
                             docker logout
                         '''
                     }
@@ -140,15 +140,29 @@ pipeline {
             }
         }
 
-        stage('Démarrage des Services') {
+        // NOUVELLE ÉTAPE KUBERNETES (SIMPLIFIÉE)
+        stage('Déploiement Kubernetes') {
             steps {
-                sh '''
-                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
-                    for i in {1..12}; do
-                        curl --fail ${ZAP_TARGET_URL}/actuator/health && break
-                        sleep 10
-                    done || (echo "Timeout sur API Gateway" && exit 1)
-                '''
+                script {
+                    sh '''
+                        # 1. Vérification/activation de Minikube
+                        minikube status || minikube start --driver=docker --cpus=4 --memory=8g
+
+                        # 2. Configuration de l'environnement Docker
+                        eval $(minikube docker-env)
+
+                        # 3. Application des configurations
+                        echo "=== Déploiement des services ==="
+                        kubectl apply -f k8s/
+
+                        # 4. Vérification
+                        echo "=== État des pods ==="
+                        kubectl get pods -w --timeout=180s
+
+                        echo "=== Services exposés ==="
+                        minikube service list
+                    '''
+                }
             }
         }
 
@@ -179,7 +193,11 @@ pipeline {
     post {
         always {
             sh '''
-                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local
+                # Nettoyage Kubernetes optionnel
+                kubectl delete -f k8s/ 2>/dev/null || true
+                # Réinitialisation de l'environnement Docker
+                eval $(minikube docker-env -u) 2>/dev/null || true
+                # Archivage des logs
                 docker-compose logs > docker-compose.log
             '''
             archiveArtifacts artifacts: 'docker-compose.log,**/target/*.jar', allowEmptyArchive: true
