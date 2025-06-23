@@ -1,11 +1,9 @@
 pipeline {
     agent any
-
     tools {
         maven 'Maven3'
         jdk 'Java17'
     }
-
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
@@ -16,6 +14,7 @@ pipeline {
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
         DOCKER_HUB_USER = 'johankarl'
         DOCKER_HUB_CRED_ID = 'dockerhub'
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
     }
 
     stages {
@@ -119,12 +118,11 @@ pipeline {
                     )]) {
                         sh '''
                             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-
-                            # Liste des services custom à pousser
+                            
                             for service in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
                                 original_image="exam-${service}"
                                 new_image="$DOCKER_USERNAME/exam-${service}"
-
+                                
                                 docker tag "$original_image" "$new_image"
                                 docker push "$new_image" || {
                                     echo "Échec du push pour $new_image"
@@ -132,7 +130,7 @@ pipeline {
                                 }
                                 echo "Image $new_image publiée avec succès"
                             done
-
+                            
                             docker logout
                         '''
                     }
@@ -140,27 +138,40 @@ pipeline {
             }
         }
 
-        // NOUVELLE ÉTAPE KUBERNETES (SIMPLIFIÉE)
         stage('Déploiement Kubernetes') {
             steps {
                 script {
                     sh '''
-                        # 1. Vérification/activation de Minikube
-                        minikube status || minikube start --driver=docker --cpus=4 --memory=8g
+                        # Configuration explicite pour éviter les problèmes de permissions
+                        export KUBECONFIG=/var/lib/jenkins/.kube/config
+                        kubectl config use-context minikube
 
-                        # 2. Configuration de l'environnement Docker
-                        eval $(minikube docker-env)
+                        # Déploiement structuré selon votre architecture
+                        echo "=== Déploiement Eureka ==="
+                        kubectl apply -f k8s/eureka/
+                        
+                        echo "=== Déploiement API Gateway ==="
+                        kubectl apply -f k8s/api-gateway/
+                        
+                        echo "=== Déploiement Frontend ==="
+                        kubectl apply -f k8s/frontend/
+                        
+                        echo "=== Déploiement Ingress ==="
+                        kubectl apply -f k8s/ingress.yaml
 
-                        # 3. Application des configurations
-                        echo "=== Déploiement des services ==="
-                        kubectl apply -f k8s/
-
-                        # 4. Vérification
-                        echo "=== État des pods ==="
-                        kubectl get pods -w --timeout=180s
-
-                        echo "=== Services exposés ==="
-                        minikube service list
+                        # Vérification complète
+                        echo "=== Résumé du déploiement ==="
+                        echo "1. Pods:"
+                        kubectl get pods -o wide
+                        echo "\n2. Services:"
+                        kubectl get svc
+                        echo "\n3. Ingress:"
+                        kubectl get ingress
+                        
+                        # Génération des URLs d'accès
+                        MINIKUBE_IP=$(minikube ip)
+                        FRONTEND_PORT=$(kubectl get svc frontend-service -o jsonpath='{.spec.ports[0].nodePort}')
+                        echo "🌐 Frontend URL: http://${MINIKUBE_IP}:${FRONTEND_PORT}"
                     '''
                 }
             }
@@ -193,20 +204,26 @@ pipeline {
     post {
         always {
             sh '''
-                # Nettoyage Kubernetes optionnel
+                # Nettoyage Kubernetes
                 kubectl delete -f k8s/ 2>/dev/null || true
-                # Réinitialisation de l'environnement Docker
-                eval $(minikube docker-env -u) 2>/dev/null || true
-                # Archivage des logs
+                
+                # Archivage des logs et état final
+                kubectl get all > k8s-final-state.log
                 docker-compose logs > docker-compose.log
             '''
-            archiveArtifacts artifacts: 'docker-compose.log,**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'k8s-final-state.log,docker-compose.log,**/target/*.jar', allowEmptyArchive: true
         }
         success {
-            echo 'Pipeline réussi!'
+            echo '✅ Pipeline exécuté avec succès!'
+            sh '''
+                echo "=== RAPPORT FINAL ==="
+                echo "Applications déployées:"
+                kubectl get svc -o wide
+            '''
         }
         failure {
-            echo 'Pipeline échoué!'
+            echo '❌ Échec du pipeline!'
+            sh 'kubectl describe pods | grep -A 20 "Events:"'
         }
     }
 }
