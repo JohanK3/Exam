@@ -119,7 +119,20 @@ pipeline {
                     )]) {
                         sh '''
                             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-                            docker-compose -f ${DOCKER_COMPOSE_FILE} push
+                            
+                            # Liste des services custom à pousser
+                            for service in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
+                                original_image="exam-${service}"
+                                new_image="$DOCKER_USERNAME/exam-${service}"
+                                
+                                docker tag "$original_image" "$new_image"
+                                docker push "$new_image" || {
+                                    echo "Échec du push pour $new_image"
+                                    exit 1
+                                }
+                                echo "Image $new_image publiée avec succès"
+                            done
+                            
                             docker logout
                         '''
                     }
