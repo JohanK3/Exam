@@ -1,9 +1,11 @@
 pipeline {
     agent any
+
     tools {
         maven 'Maven3'
         jdk 'Java17'
     }
+
     environment {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         JMETER_HOME = '/opt/jmeter'
@@ -14,7 +16,6 @@ pipeline {
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
         DOCKER_HUB_USER = 'johankarl'
         DOCKER_HUB_CRED_ID = 'dockerhub'
-        KUBECONFIG = '/var/lib/jenkins/.kube/config'
     }
 
     stages {
@@ -119,6 +120,7 @@ pipeline {
                         sh '''
                             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
                             
+                            # Liste des services custom à pousser
                             for service in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
                                 original_image="exam-${service}"
                                 new_image="$DOCKER_USERNAME/exam-${service}"
@@ -138,42 +140,15 @@ pipeline {
             }
         }
 
-        stage('Déploiement Kubernetes') {
+        stage('Démarrage des Services') {
             steps {
-                script {
-                    sh '''
-                        # Configuration explicite pour éviter les problèmes de permissions
-                        export KUBECONFIG=/var/lib/jenkins/.kube/config
-                        kubectl config use-context minikube
-
-                        # Déploiement structuré selon votre architecture
-                        echo "=== Déploiement Eureka ==="
-                        kubectl apply -f k8s/eureka/
-                        
-                        echo "=== Déploiement API Gateway ==="
-                        kubectl apply -f k8s/api-gateway/
-                        
-                        echo "=== Déploiement Frontend ==="
-                        kubectl apply -f k8s/frontend/
-                        
-                        echo "=== Déploiement Ingress ==="
-                        kubectl apply -f k8s/ingress.yaml
-
-                        # Vérification complète
-                        echo "=== Résumé du déploiement ==="
-                        echo "1. Pods:"
-                        kubectl get pods -o wide
-                        echo "\n2. Services:"
-                        kubectl get svc
-                        echo "\n3. Ingress:"
-                        kubectl get ingress
-                        
-                        # Génération des URLs d'accès
-                        MINIKUBE_IP=$(minikube ip)
-                        FRONTEND_PORT=$(kubectl get svc frontend-service -o jsonpath='{.spec.ports[0].nodePort}')
-                        echo "🌐 Frontend URL: http://${MINIKUBE_IP}:${FRONTEND_PORT}"
-                    '''
-                }
+                sh '''
+                    COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} up -d
+                    for i in {1..12}; do
+                        curl --fail ${ZAP_TARGET_URL}/actuator/health && break
+                        sleep 10
+                    done || (echo "Timeout sur API Gateway" && exit 1)
+                '''
             }
         }
 
@@ -204,26 +179,16 @@ pipeline {
     post {
         always {
             sh '''
-                # Nettoyage Kubernetes
-                kubectl delete -f k8s/ 2>/dev/null || true
-                
-                # Archivage des logs et état final
-                kubectl get all > k8s-final-state.log
+                COMPOSE_PROJECT_NAME=exam docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local
                 docker-compose logs > docker-compose.log
             '''
-            archiveArtifacts artifacts: 'k8s-final-state.log,docker-compose.log,**/target/*.jar', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'docker-compose.log,**/target/*.jar', allowEmptyArchive: true
         }
         success {
-            echo '✅ Pipeline exécuté avec succès!'
-            sh '''
-                echo "=== RAPPORT FINAL ==="
-                echo "Applications déployées:"
-                kubectl get svc -o wide
-            '''
+            echo 'Pipeline réussi!'
         }
         failure {
-            echo '❌ Échec du pipeline!'
-            sh 'kubectl describe pods | grep -A 20 "Events:"'
+            echo 'Pipeline échoué!'
         }
     }
 }
