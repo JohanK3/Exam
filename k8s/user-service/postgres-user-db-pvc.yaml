@@ -1,0 +1,11 @@
+# k8s/user-service/postgres-user-db-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-user-data-pvc # Nom unique pour votre volume persistant PostgreSQL
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # Demande 1 Gigaoctet de stockage. Ajustez si nécessaire.

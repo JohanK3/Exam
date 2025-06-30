@@ -1,0 +1,58 @@
+# k8s/sonarqube/sonar-db-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonar-db # Nom de votre déploiement PostgreSQL pour SonarQube
+  labels:
+    app: sonar-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sonar-db
+  template:
+    metadata:
+      labels:
+        app: sonar-db
+    spec:
+      containers:
+      - name: sonar-db
+        image: postgres:13 # L'image Docker de PostgreSQL. Assurez-vous que c'est compatible avec SonarQube.
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+        env: # Variables d'environnement pour configurer PostgreSQL
+        - name: POSTGRES_DB
+          value: "sonarqube" # Nom de la base de données pour SonarQube
+        - name: POSTGRES_USER
+          value: "sonaruser" # Utilisateur pour SonarQube
+        - name: POSTGRES_PASSWORD
+          value: "sonarpass" # Mot de passe pour SonarQube (ATTENTION: en clair ici)
+        volumeMounts:
+        - name: sonar-db-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "600m"
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 45
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command: ["pg_isready", "-h", "localhost", "-p", "5432", "-U", "sonaruser"]
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: sonar-db-storage
+        persistentVolumeClaim:
+          claimName: sonar-db-data-pvc # Référence à la PVC créée ci-dessus

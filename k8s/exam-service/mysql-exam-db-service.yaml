@@ -1,0 +1,15 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-exam-db # C'est le nom que exam-service et course-service utiliseront pour se connecter
+  labels:
+    app: mysql-exam-db
+spec:
+  selector:
+    app: mysql-exam-db # Sélectionne les pods de votre déploiement MySQL
+  ports:
+    - protocol: TCP
+      port: 3306 # Port sur lequel le service sera accessible
+      targetPort: 3306 # Port du conteneur MySQL
+  type: ClusterIP # Accès interne au cluster uniquement

@@ -1,24 +1,32 @@
+# k8s/ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: exam-ingress
+  name: exam-project-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/rewrite-target: /$1 # Optionnel, dépend de votre configuration
 spec:
   rules:
-  - http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: frontend-service
-            port:
-              number: 80
-      - path: /api
-        pathType: Prefix
-        backend:
-          service:
-            name: api-gateway-service
-            port:
-              number: 8090
+    - http:
+        paths:
+          - path: /api/(.*) # Toutes les requêtes commençant par /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway-service # Nom du service de votre API Gateway
+                port:
+                  number: 8080 # Port de votre service API Gateway
+          - path: / # Toutes les autres requêtes (pour le frontend)
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend # Nom du service de votre Frontend
+                port:
+                  number: 80 # Port de votre service Frontend
+          - path: /sonarqube/(.*) # Requêtes pour SonarQube
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarqube-service # Nom du service de SonarQube
+                port:
+                  number: 9000 # Port de votre service SonarQube

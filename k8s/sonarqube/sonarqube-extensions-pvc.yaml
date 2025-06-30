@@ -1,0 +1,11 @@
+# k8s/sonarqube/sonarqube-extensions-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-extensions-pvc # PVC pour les extensions et plugins de SonarQube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi # Espace pour les extensions de SonarQube.

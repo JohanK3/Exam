@@ -1,0 +1,15 @@
+# k8s/user-service/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service # Ce nom sera utilisé par l'API Gateway pour router les requêtes
+  labels:
+    app: user-service
+spec:
+  selector:
+    app: user-service # Sélectionne les pods de votre déploiement user-service
+  ports:
+    - protocol: TCP
+      port: 8084 # Port sur lequel le service sera exposé à l'intérieur du cluster
+      targetPort: 8084 # Port du conteneur user-service
+  type: ClusterIP # Accès interne au cluster uniquement

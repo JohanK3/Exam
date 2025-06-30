@@ -1,0 +1,59 @@
+# k8s/exam-service/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exam-service # Nom de votre déploiement pour exam-service
+  labels:
+    app: exam-service
+spec:
+  replicas: 1 # Nombre de réplicas souhaité
+  selector:
+    matchLabels:
+      app: exam-service
+  template:
+    metadata:
+      labels:
+        app: exam-service
+    spec:
+      containers:
+      - name: exam-service
+        image: johankarl/exam-exam-service:latest # L'image Docker que vous poussez sur Docker Hub
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8082 # Port par défaut de votre exam-service (à vérifier dans votre code)
+        env:
+        - name: SPRING_PROFILES_ACTIVE
+          value: prod
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          value: http://eureka-service:8761/eureka # Pointe vers le Service Kubernetes d'Eureka
+        - name: SPRING_DATASOURCE_URL # Variable d'environnement pour la connexion MySQL
+          value: jdbc:mysql://mysql-exam-db:3306/examdb # Utilise le nom du Service MySQL
+        - name: SPRING_DATASOURCE_USERNAME
+          value: examuser # Utilisateur MySQL défini dans mysql-exam-db-deployment.yaml
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: exampass # Mot de passe MySQL défini dans mysql-exam-db-deployment.yaml
+        - name: JAVA_OPTS
+          value: "-Xmx512m -Xms256m"
+        livenessProbe: # Sonde de liveness
+          httpGet:
+            path: /actuator/health # Chemin de la health check Spring Boot
+            port: 8082
+          initialDelaySeconds: 120 # Peut prendre du temps à démarrer et se connecter à Eureka/MySQL
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe: # Sonde de readiness
+          httpGet:
+            path: /actuator/health
+            port: 8082
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources: # Allocation de ressources
+          requests:
+            memory: "512Mi"
+            cpu: "300m"
+          limits:
+            memory: "1Gi"
+            cpu: "600m"

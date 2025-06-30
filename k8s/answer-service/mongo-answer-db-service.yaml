@@ -1,0 +1,15 @@
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo-answer-db # C'est le nom que votre 'answer-service' utilisera pour se connecter (par exemple, dans l'URL de connexion JDBC/MongoDB)
+  labels:
+    app: mongo-answer-db
+spec:
+  selector:
+    app: mongo-answer-db # Sélectionne les pods avec ce label (ceux de votre déploiement MongoDB)
+  ports:
+    - protocol: TCP
+      port: 27017 # Port sur lequel le service sera accessible
+      targetPort: 27017 # Port du conteneur MongoDB
+  type: ClusterIP # Rend le service accessible uniquement à l'intérieur du cluster

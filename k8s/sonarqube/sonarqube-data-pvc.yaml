@@ -1,0 +1,11 @@
+# k8s/sonarqube/sonarqube-data-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarqube-data-pvc # PVC pour les données principales de SonarQube
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi # Espace pour les données de SonarQube. Ajustez selon la taille de vos projets.

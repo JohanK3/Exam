@@ -1,0 +1,15 @@
+# k8s/sonarqube/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarqube-service # Nom du service pour SonarQube
+  labels:
+    app: sonarqube
+spec:
+  selector:
+    app: sonarqube # Sélectionne les pods de votre déploiement SonarQube
+  ports:
+    - protocol: TCP
+      port: 9000 # Port sur lequel le service sera exposé
+      targetPort: 9000 # Port du conteneur SonarQube
+  type: ClusterIP # Accès interne au cluster (l'Ingress gérera l'accès externe)

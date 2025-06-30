@@ -1,0 +1,11 @@
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-exam-data-pvc # Nom unique pour votre volume persistant MySQL
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi # Demande 2 Gigaoctets de stockage. Ajustez si nécessaire.
