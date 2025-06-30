@@ -12,7 +12,6 @@ pipeline {
         DOCKER_HUB_CRED_ID = 'dockerhub' // ID de vos identifiants Docker Hub configurés dans Jenkins
 
         // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
-        // Elles sont conservées pour quand vous décommenterez la stage SonarQube
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
         SONAR_HOST_URL = 'http://sonarqube-service:9000' // URL du service SonarQube dans le cluster Kubernetes (interne)
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
@@ -105,7 +104,8 @@ pipeline {
                         'frontend': 'exam-frontend'
                     ]
 
-                    for (serviceDir, imageNameSuffix in servicesToBuild) {
+                    // CORRECTION ICI: Utilisation de .each pour itérer sur la map en Groovy
+                    servicesToBuild.each { serviceDir, imageNameSuffix ->
                         // Utilise la base du chemin 'backend/' si le service n'est pas 'frontend'
                         def baseDir = (serviceDir == 'frontend') ? "frontend" : "backend/${serviceDir}"
                         dir(baseDir) {
@@ -177,7 +177,7 @@ pipeline {
             }
         }
 
-        // --- DÉBUT DE LA SECTION SONARQUBE COMMENTÉE ---
+        // --- SECTION SONARQUBE COMMENTÉE (comme demandé) ---
         /*
         stage('Analyse SonarQube') {
             steps {
