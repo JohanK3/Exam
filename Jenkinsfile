@@ -3,7 +3,7 @@ pipeline {
 
     tools {
         maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        jdk 'Java17'   // Vérifiez le nom exact de votre installation JDK
+        jdk 'Java17'    // Vérifiez le nom exact de votre installation JDK
     }
 
     environment {
@@ -192,9 +192,9 @@ pipeline {
                         }
                         // Si vous avez un sonar-project.properties dans frontend
                         // dir("frontend") {
-                        //     withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                        //         sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
-                        //     }
+                        //      withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                        //          sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                        //      }
                         // }
                     }
                 }
@@ -208,66 +208,66 @@ pipeline {
                 script {
                     echo "Déploiement sur Kubernetes (Minikube)..."
 
-                    sh 'minikube status || minikube start'
-                    sh 'minikube addons enable ingress || true'
+                    // Définir KUBECONFIG pour toutes les commandes kubectl dans ce bloc
+                    withEnv(["KUBECONFIG=/home/karl/.kube/config"]) {
+                        sh 'minikube status || minikube start'
+                        sh 'minikube addons enable ingress || true'
 
-                    echo "Application des manifests des bases de données et des PVCs..."
-                    sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                    sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
-                    sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
+                        echo "Application des manifests des bases de données et des PVCs..."
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
+                        sh 'kubectl apply -f kk8s/answer-service/mongo-answer-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
 
-                    sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
-                    sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
-                    sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
 
-                    sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
-                    sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
-                    sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
-                    sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
-                    sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
-                    sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
-                    sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
-                    sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
 
+                        echo "Attente des déploiements des bases de données..."
+                        sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
 
-                    echo "Attente des déploiements des bases de données..."
-                    sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
+                        echo "Application des manifests des services d'infrastructure et principaux..."
+                        sh 'kubectl apply -f k8s/eureka/'
+                        sh 'kubectl apply -f k8s/api-gateway/'
+                        sh 'kubectl apply -f k8s/frontend/'
+                        sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
+                        sh 'kubectl apply -f k8s/sonarqube/service.yaml'
 
+                        echo "Attente du déploiement d'Eureka et SonarQube..."
+                        sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
 
-                    echo "Application des manifests des services d'infrastructure et principaux..."
-                    sh 'kubectl apply -f k8s/eureka/'
-                    sh 'kubectl apply -f k8s/api-gateway/'
-                    sh 'kubectl apply -f k8s/frontend/'
-                    sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
-                    sh 'kubectl apply -f k8s/sonarqube/service.yaml'
+                        echo "Application des manifests des services métiers..."
+                        sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/answer-service/service.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/service.yaml'
+                        sh 'kubectl apply -f k8s/course-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/course-service/service.yaml'
+                        sh 'kubectl apply -f k8s/user-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/user-service/service.yaml'
 
-                    echo "Attente du déploiement d'Eureka et SonarQube..."
-                    sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
+                        echo "Attente des déploiements de tous les services métiers..."
+                        sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
 
-
-                    echo "Application des manifests des services métiers..."
-                    sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
-                    sh 'kubectl apply -f k8s/answer-service/service.yaml'
-                    sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
-                    sh 'kubectl apply -f k8s/exam-service/service.yaml'
-                    sh 'kubectl apply -f k8s/course-service/deployment.yaml'
-                    sh 'kubectl apply -f k8s/course-service/service.yaml'
-                    sh 'kubectl apply -f k8s/user-service/deployment.yaml'
-                    sh 'kubectl apply -f k8s/user-service/service.yaml'
-
-                    echo "Attente des déploiements de tous les services métiers..."
-                    sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
-                    sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
-
-                    echo "Application du manifest Ingress..."
-                    sh 'kubectl apply -f k8s/ingress.yaml'
+                        echo "Application du manifest Ingress..."
+                        sh 'kubectl apply -f k8s/ingress.yaml'
+                    } // Fin du bloc withEnv pour le stage de déploiement
                 }
             }
         }
@@ -312,15 +312,18 @@ pipeline {
         always {
             echo "Pipeline terminé."
             echo "Vérification finale des ressources Kubernetes:"
-            sh 'kubectl get pods -o wide'
-            sh 'kubectl get services'
-            sh 'kubectl get deployments'
-            sh 'kubectl get ingress'
-            sh 'minikube service list'
-            sh 'minikube ip'
+            // Définir KUBECONFIG pour les commandes kubectl dans le bloc post-build
+            withEnv(["KUBECONFIG=/home/karl/.kube/config"]) {
+                sh 'kubectl get pods -o wide || true' // Ajout de || true pour ne pas faire échouer le pipeline si la commande échoue
+                sh 'kubectl get services || true'
+                sh 'kubectl get deployments || true'
+                sh 'kubectl get ingress || true'
+            }
+            sh 'minikube service list || true'
+            sh 'minikube ip || true'
             echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
-            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true' // Ajout de || true pour éviter un échec si non démarré
-            sh 'docker-compose logs > docker-compose.log || true' // Ajout de || true
+            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
+            sh 'docker-compose logs > docker-compose.log || true'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
         }
         success {
