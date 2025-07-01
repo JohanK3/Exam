@@ -208,14 +208,13 @@ pipeline {
                 script {
                     echo "Déploiement sur Kubernetes (Minikube)..."
 
-                    // Définir KUBECONFIG pour toutes les commandes kubectl dans ce bloc
-                    withEnv(["KUBECONFIG=/home/karl/.kube/config"]) {
+                    // Définir KUBECONFIG et MINIKUBE_HOME pour toutes les commandes dans ce bloc
+                    withEnv(["KUBECONFIG=/home/karl/.kube/config", "MINIKUBE_HOME=/home/karl"]) {
                         sh 'minikube status || minikube start'
                         sh 'minikube addons enable ingress || true'
 
                         echo "Application des manifests des bases de données et des PVCs..."
                         sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                        // CORRECTION ICI: kk8s -> k8s
                         sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
                         sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
 
