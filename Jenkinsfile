@@ -107,7 +107,7 @@ pipeline {
                     // Vous devrez peut-être les tagger si vous voulez un tag ':latest' explicite
                     def imagesToScan = [
                         "exam-eureka-service:latest",
-                        "exam-api-gateway-service:latest", // Corrigé pour correspondre à docker-compose.yml
+                        "exam-api-gateway-service:latest",
                         "exam-answer-service:latest",
                         "exam-exam-service:latest",
                         "exam-course-service:latest",
@@ -215,7 +215,8 @@ pipeline {
 
                         echo "Application des manifests des bases de données et des PVCs..."
                         sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                        sh 'kubectl apply -f kk8s/answer-service/mongo-answer-db-deployment.yaml'
+                        // CORRECTION ICI: kk8s -> k8s
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
                         sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
 
                         sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
@@ -314,7 +315,7 @@ pipeline {
             echo "Vérification finale des ressources Kubernetes:"
             // Définir KUBECONFIG pour les commandes kubectl dans le bloc post-build
             withEnv(["KUBECONFIG=/home/karl/.kube/config"]) {
-                sh 'kubectl get pods -o wide || true' // Ajout de || true pour ne pas faire échouer le pipeline si la commande échoue
+                sh 'kubectl get pods -o wide || true'
                 sh 'kubectl get services || true'
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
