@@ -168,7 +168,6 @@ pipeline {
             }
         }
 
-        ---
         stage('Analyse SonarQube') {
             steps {
                 script {
@@ -202,7 +201,6 @@ pipeline {
                 }
             }
         }
-        ---
 
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
@@ -227,37 +225,33 @@ pipeline {
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
-                        // --- SUPPRIMER CES LIGNES CAR SONARQUBE N'EST PLUS DANS KUBERNETES ---
+                        // SonarQube n'est plus déployé dans Kubernetes, donc les lignes suivantes sont commentées/supprimées
                         // sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
                         // sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
                         // sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
                         // sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
                         // sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
-                        // --- FIN DE LA SUPPRESSION ---
 
                         echo "Attente des déploiements des bases de données..."
                         sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
-                        // --- SUPPRIMER CETTE LIGNE ---
+                        // SonarQube n'est plus déployé dans Kubernetes, donc la ligne suivante est commentée/supprimée
                         // sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
-                        // --- FIN DE LA SUPPRESSION ---
 
 
                         echo "Application des manifests des services d'infrastructure et principaux..."
                         sh 'kubectl apply -f k8s/eureka/'
                         sh 'kubectl apply -f k8s/api-gateway/'
                         sh 'kubectl apply -f k8s/frontend/'
-                        // --- SUPPRIMER CES LIGNES ---
+                        // SonarQube n'est plus déployé dans Kubernetes, donc les lignes suivantes sont commentées/supprimées
                         // sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
                         // sh 'kubectl apply -f k8s/sonarqube/service.yaml'
-                        // --- FIN DE LA SUPPRESSION ---
 
                         echo "Attente du déploiement d'Eureka..."
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
-                        // --- SUPPRIMER CETTE LIGNE ---
+                        // SonarQube n'est plus déployé dans Kubernetes, donc la ligne suivante est commentée/supprimée
                         // sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
-                        // --- FIN DE LA SUPPRESSION ---
 
 
                         echo "Application des manifests des services métiers..."
