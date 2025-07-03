@@ -18,7 +18,7 @@ for image_name in $images; do
     # Utiliser --format json pour la sortie JSON
     # Le --exit-code 0 permet au pipeline de ne pas échouer même si des vulnérabilités sont trouvées,
     # pour le débogage. Retirez-le pour un comportement plus strict en production.
-    trivy image --scanners vuln --exit-code 0 --timeout 15m0s --format json "$image_name" > "trivy-${service_name}.json"
+    trivy image --scanners vuln --exit-code 0 --timeout 30m0s --format json "$image_name" > "trivy-${service_name}.json"
 done
 
 echo "✅ Tous les scans Trivy sont terminés."
