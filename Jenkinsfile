@@ -16,7 +16,8 @@ pipeline {
 
         // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
-        SONAR_HOST_URL = 'http://sonarqube-service:9000' // URL du service SonarQube dans le cluster Kubernetes (interne)
+        // L'URL de SonarQube sera l'IP de la VM Jenkins elle-même, car SonarQube est installé directement dessus
+        SONAR_HOST_URL = 'http://localhost:9000' // Ou l'IP de la VM si Jenkins ne tourne pas sur localhost
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
 
         // Variables pour ZAP
@@ -167,8 +168,7 @@ pipeline {
             }
         }
 
-        // --- SECTION SONARQUBE COMMENTÉE (comme dans vos versions précédentes) ---
-        /*
+        ---
         stage('Analyse SonarQube') {
             steps {
                 script {
@@ -190,18 +190,19 @@ pipeline {
                                 }
                             }
                         }
-                        // Si vous avez un sonar-project.properties dans frontend
-                        // dir("frontend") {
-                        //      withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                        //          sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
-                        //      }
-                        // }
+                        // Pour le frontend (s'il est en JavaScript/TypeScript et utilise sonar-scanner CLI)
+                        dir("frontend") {
+                            withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                // Assurez-vous que le fichier sonar-project.properties est correctement configuré dans le dossier 'frontend'
+                                // Ou spécifiez les paramètres directement si nécessaire
+                                sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                            }
+                        }
                     }
                 }
             }
         }
-        */
-        // --- FIN DE LA SECTION SONARQUBE COMMENTÉE ---
+        ---
 
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
@@ -226,28 +227,38 @@ pipeline {
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
-                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
-                        sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
-                        sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
+                        // --- SUPPRIMER CES LIGNES CAR SONARQUBE N'EST PLUS DANS KUBERNETES ---
+                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
+                        // sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
+                        // --- FIN DE LA SUPPRESSION ---
 
                         echo "Attente des déploiements des bases de données..."
                         sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
+                        // --- SUPPRIMER CETTE LIGNE ---
+                        // sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
+                        // --- FIN DE LA SUPPRESSION ---
+
 
                         echo "Application des manifests des services d'infrastructure et principaux..."
                         sh 'kubectl apply -f k8s/eureka/'
                         sh 'kubectl apply -f k8s/api-gateway/'
                         sh 'kubectl apply -f k8s/frontend/'
-                        sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
-                        sh 'kubectl apply -f k8s/sonarqube/service.yaml'
+                        // --- SUPPRIMER CES LIGNES ---
+                        // sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/sonarqube/service.yaml'
+                        // --- FIN DE LA SUPPRESSION ---
 
-                        echo "Attente du déploiement d'Eureka et SonarQube..."
+                        echo "Attente du déploiement d'Eureka..."
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
+                        // --- SUPPRIMER CETTE LIGNE ---
+                        // sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
+                        // --- FIN DE LA SUPPRESSION ---
+
 
                         echo "Application des manifests des services métiers..."
                         sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
