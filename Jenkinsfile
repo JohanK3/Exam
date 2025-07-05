@@ -94,11 +94,9 @@ pipeline {
             }
         }
 
-        // NOUVELLE ÉTAPE : Configuration de l'environnement Docker de Minikube
         stage('Configure Minikube Docker') {
             steps {
                 echo "Configuration de l'environnement Docker pour Minikube..."
-                // Cette commande redirige les commandes 'docker' suivantes vers le démon Docker de Minikube.
                 sh 'eval $(minikube docker-env)'
             }
         }
@@ -106,7 +104,6 @@ pipeline {
         stage('Construction des Images Docker') {
             steps {
                 echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
-                // Grâce à l'étape précédente, ces images sont construites directement dans Minikube.
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
             }
         }
@@ -114,8 +111,6 @@ pipeline {
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
-                    // Les noms d'images produits par docker-compose sont comme 'exam-eureka-service'
-                    // Vous devrez peut-être les tagger si vous voulez un tag ':latest' explicite
                     def imagesToScan = [
                         "exam-eureka-service:latest",
                         "exam-api-gateway-service:latest",
@@ -135,7 +130,7 @@ pipeline {
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
+                                # exit 1
                             fi
                         done
                     '''
@@ -154,9 +149,7 @@ pipeline {
                     )]) {
                         sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
 
-                        // Reprise de la logique de publication de votre ancien Jenkinsfile
                         sh '''
-                            # Liste des services custom à pousser (noms d'images tels que définis dans docker-compose.yml)
                             for service_name in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
                                 original_image="exam-${service_name}"
                                 new_image="${DOCKER_HUB_USERNAME}/${original_image}"
@@ -192,17 +185,13 @@ pipeline {
                         for (serviceDir in servicesToScan) {
                             echo "Lancement de l'analyse SonarQube pour ${serviceDir}..."
                             dir("backend/${serviceDir}") {
-                                // Assurez-vous que SONAR_TOKEN_CRED_ID est bien l'ID d'un "Secret text" contenant le token
                                 withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
                                     sh "mvn sonar:sonar -Dsonar.projectKey=exam-${serviceDir} -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                                 }
                             }
                         }
-                        // Pour le frontend (s'il est en JavaScript/TypeScript et utilise sonar-scanner CLI)
                         dir("frontend") {
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                // Assurez-vous que le fichier sonar-project.properties est correctement configuré dans le dossier 'frontend'
-                                // Ou spécifiez les paramètres directement si nécessaire
                                 sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
                         }
@@ -216,8 +205,8 @@ pipeline {
                 script {
                     echo "Déploiement sur Kubernetes (Minikube)..."
 
-                    // Définir KUBECONFIG et MINIKUBE_HOME pour toutes les commandes dans ce bloc
-                    withEnv(["KUBECONFIG=/home/karl/.kube/config", "MINIKUBE_HOME=/home/karl"]) {
+                    // Utilisation de env.HOME pour KUBECONFIG et MINIKUBE_HOME, car Minikube a été configuré pour l'utilisateur Jenkins
+                    withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
                         sh 'minikube status || minikube start'
                         sh 'minikube addons enable ingress || true'
 
@@ -267,7 +256,7 @@ pipeline {
 
                         echo "Application du manifest Ingress..."
                         sh 'kubectl apply -f k8s/ingress.yaml'
-                    } // Fin du bloc withEnv pour le stage de déploiement
+                    }
                 }
             }
         }
@@ -276,11 +265,14 @@ pipeline {
             steps {
                 script {
                     echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
-                    def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                    def apiGatewayUrl = "http://${minikubeIp}/api"
+                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
+                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                         def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                         def apiGatewayUrl = "http://${minikubeIp}/api"
 
-                    echo "URL cible pour JMeter: ${apiGatewayUrl}"
-                    sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                         echo "URL cible pour JMeter: ${apiGatewayUrl}"
+                         sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                    }
                     archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
                 }
             }
@@ -290,18 +282,20 @@ pipeline {
             steps {
                 script {
                     echo "Lancement du scan OWASP ZAP sur les services déployés sur Kubernetes..."
-                    def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                    def apiGatewayUrl = "http://${minikubeIp}/api"
+                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
+                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                        def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                        def apiGatewayUrl = "http://${minikubeIp}/api"
 
-                    // ZAP_TARGET_URL n'est plus utilisé en variable d'environnement Jenkins car il est calculé dynamiquement ici
-                    sh '''
-                        chmod +x zap_scan.sh
-                        ./zap_scan.sh ''' + apiGatewayUrl + ''' ${ZAP_REPORT_FILE}
-                        if jq '.alerts[] | select(.risk == "High" or .risk == "Critical")' "${ZAP_REPORT_FILE}" | grep -q .; then
-                            echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${ZAP_REPORT_FILE}. Échec du pipeline."
-                            exit 1
-                        fi
-                    '''
+                        sh '''
+                            chmod +x zap_scan.sh
+                            ./zap_scan.sh ''' + apiGatewayUrl + ''' ${ZAP_REPORT_FILE}
+                            if jq '.alerts[] | select(.risk == "High" or .risk == "Critical")' "${ZAP_REPORT_FILE}" | grep -q .; then
+                                echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${ZAP_REPORT_FILE}. Échec du pipeline."
+                                exit 1
+                            fi
+                        '''
+                    }
                     archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: false
                 }
             }
@@ -312,17 +306,19 @@ pipeline {
         always {
             echo "Pipeline terminé."
             echo "Vérification finale des ressources Kubernetes:"
-            // Définir KUBECONFIG pour les commandes kubectl dans le bloc post-build
-            withEnv(["KUBECONFIG=/home/karl/.kube/config"]) {
+            // Utilisation de env.HOME pour KUBECONFIG dans le bloc post-build
+            withEnv(["KUBECONFIG=${env.HOME}/.kube/config"]) {
                 sh 'kubectl get pods -o wide || true'
                 sh 'kubectl get services || true'
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
             }
-            sh 'minikube service list || true'
-            sh 'minikube ip || true'
+            // Utilisation de env.HOME pour minikube service list et minikube ip
+            withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                sh 'minikube service list || true'
+                sh 'minikube ip || true'
+            }
             echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
-            // Le --rmi local est important pour supprimer les images construites localement par docker-compose
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
             sh 'docker-compose logs > docker-compose.log || true'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
