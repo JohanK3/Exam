@@ -94,9 +94,19 @@ pipeline {
             }
         }
 
+        // NOUVELLE ÉTAPE : Configuration de l'environnement Docker de Minikube
+        stage('Configure Minikube Docker') {
+            steps {
+                echo "Configuration de l'environnement Docker pour Minikube..."
+                // Cette commande redirige les commandes 'docker' suivantes vers le démon Docker de Minikube.
+                sh 'eval $(minikube docker-env)'
+            }
+        }
+
         stage('Construction des Images Docker') {
             steps {
-                echo "Construction des images Docker via docker-compose..."
+                echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
+                // Grâce à l'étape précédente, ces images sont construites directement dans Minikube.
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
             }
         }
@@ -125,7 +135,7 @@ pipeline {
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1
+                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
                             fi
                         done
                     '''
@@ -147,7 +157,6 @@ pipeline {
                         // Reprise de la logique de publication de votre ancien Jenkinsfile
                         sh '''
                             # Liste des services custom à pousser (noms d'images tels que définis dans docker-compose.yml)
-                            # Remarque : j'ai ajusté 'api-gateway-service' pour correspondre à votre docker-compose.yml
                             for service_name in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
                                 original_image="exam-${service_name}"
                                 new_image="${DOCKER_HUB_USERNAME}/${original_image}"
@@ -225,33 +234,19 @@ pipeline {
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
                         sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
-                        // SonarQube n'est plus déployé dans Kubernetes, donc les lignes suivantes sont commentées/supprimées
-                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-pvc.yaml'
-                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-deployment.yaml'
-                        // sh 'kubectl apply -f k8s/sonarqube/sonar-db-service.yaml'
-                        // sh 'kubectl apply -f k8s/sonarqube/sonarqube-data-pvc.yaml'
-                        // sh 'kubectl apply -f k8s/sonarqube/sonarqube-extensions-pvc.yaml'
-
                         echo "Attente des déploiements des bases de données..."
                         sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
                         sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
-                        // SonarQube n'est plus déployé dans Kubernetes, donc la ligne suivante est commentée/supprimée
-                        // sh 'kubectl wait --for=condition=Available deployment/sonar-db --timeout=300s || true'
 
 
                         echo "Application des manifests des services d'infrastructure et principaux..."
                         sh 'kubectl apply -f k8s/eureka/'
                         sh 'kubectl apply -f k8s/api-gateway/'
                         sh 'kubectl apply -f k8s/frontend/'
-                        // SonarQube n'est plus déployé dans Kubernetes, donc les lignes suivantes sont commentées/supprimées
-                        // sh 'kubectl apply -f k8s/sonarqube/deployment.yaml'
-                        // sh 'kubectl apply -f k8s/sonarqube/service.yaml'
 
                         echo "Attente du déploiement d'Eureka..."
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
-                        // SonarQube n'est plus déployé dans Kubernetes, donc la ligne suivante est commentée/supprimée
-                        // sh 'kubectl wait --for=condition=Available deployment/sonarqube --timeout=600s || true'
 
 
                         echo "Application des manifests des services métiers..."
@@ -327,6 +322,7 @@ pipeline {
             sh 'minikube service list || true'
             sh 'minikube ip || true'
             echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
+            // Le --rmi local est important pour supprimer les images construites localement par docker-compose
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
             sh 'docker-compose logs > docker-compose.log || true'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
