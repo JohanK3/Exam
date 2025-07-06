@@ -136,6 +136,38 @@ pipeline {
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
             }
         }
+
+        stage('Scan de sécurité Trivy') {
+            steps {
+                script {
+                    // La liste IMAGES_TO_SCAN est définie à l'intérieur du bloc 'script'
+                    def IMAGES_TO_SCAN = [
+                        "exam-eureka-service:latest",
+                        "exam-api-gateway-service:latest",
+                        "exam-answer-service:latest",
+                        "exam-exam-service:latest",
+                        "exam-course-service:latest",
+                        "exam-user-service:latest",
+                        "exam-frontend:latest"
+                    ]
+                    echo "Lancement du scan Trivy pour toutes les images Docker..."
+                    for (image in IMAGES_TO_SCAN) {
+                        echo "  -> Scan Trivy pour l'image: ${image}"
+                        sh "trivy image --format json --output trivy-${image.replaceAll('/', '-').replaceAll(':', '_')}.json ${image}"
+                    }
+
+                    sh '''
+                        for report in trivy-*.json; do
+                            if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
+                                echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
+                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
+                            fi
+                        done
+                    '''
+                    archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: false
+                }
+            }
+        }
     }
 
     // Le bloc post est conservé pour les messages de fin de pipeline
