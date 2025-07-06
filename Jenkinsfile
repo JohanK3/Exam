@@ -45,7 +45,7 @@ pipeline {
                 echo "Récupération du code source depuis GitHub..."
                 // Augmentation du timeout pour le clonage Git, car le dépôt est volumineux
                 timeout(time: 300, unit: 'SECONDS') { // Définit un timeout de 5 minutes (300 secondes)
-                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git' // Correction ici !
+                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
                 }
             }
         }
@@ -198,6 +198,39 @@ pipeline {
                             sh "docker push \"$new_image:latest\" || { echo \"Échec du push pour $new_image:latest\"; exit 1; }"
                         }
                         sh 'docker logout'
+                    }
+                }
+            }
+        }
+
+        stage('Analyse SonarQube') {
+            steps {
+                script {
+                    // La liste servicesToScan est définie à l'intérieur du bloc 'script'
+                    def servicesToScan = [
+                        'api-gateway-service',
+                        'answer-service',
+                        'course-service',
+                        'eureka-service',
+                        'exam-service',
+                        'user-service'
+                    ]
+                    echo "Lancement de l'analyse SonarQube pour les services backend et le frontend..."
+                    withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
+                        for (serviceDir in servicesToScan) {
+                            echo "  -> Analyse SonarQube pour ${serviceDir}..."
+                            dir("backend/${serviceDir}") {
+                                withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${serviceDir} -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                }
+                            }
+                        }
+                        dir("frontend") {
+                            echo "  -> Analyse SonarQube pour le frontend..."
+                            withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                            }
+                        }
                     }
                 }
             }
