@@ -128,6 +128,14 @@ pipeline {
                 }
             }
         }
+
+        stage('Construction des Images Docker') {
+            steps {
+                echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
+                // Utilise la variable d'environnement DOCKER_COMPOSE_FILE définie globalement
+                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
+            }
+        }
     }
 
     // Le bloc post est conservé pour les messages de fin de pipeline
