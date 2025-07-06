@@ -122,6 +122,14 @@ pipeline {
         }
     }
 
+    // --- Phase 3: Gestion des Images Docker ---
+    stage('Configure Minikube Docker') {
+        steps{
+            echo "Configuration de l'environnement Docker pour Minikube..."
+            sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
+        }
+    }
+
     // Le bloc post est conservé pour les messages de fin de pipeline
     post {
         always {
