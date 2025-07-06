@@ -45,7 +45,7 @@ pipeline {
                 echo "Récupération du code source depuis GitHub..."
                 // Augmentation du timeout pour le clonage Git, car le dépôt est volumineux
                 timeout(time: 300, unit: 'SECONDS') { // Définit un timeout de 5 minutes (300 secondes)
-                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
+                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://JohanK3/Exam.git'
                 }
             }
         }
@@ -160,11 +160,45 @@ pipeline {
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
+                                // exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
                             fi
                         done
                     '''
                     archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: false
+                }
+            }
+        }
+
+        stage('Publication sur Docker Hub') {
+            steps {
+                script {
+                    // La liste DOCKER_SERVICES_TO_PUSH est définie à l'intérieur du bloc 'script'
+                    def DOCKER_SERVICES_TO_PUSH = [
+                        'eureka-service',
+                        'api-gateway-service',
+                        'answer-service',
+                        'exam-service',
+                        'course-service',
+                        'user-service',
+                        'frontend'
+                    ]
+                    echo "Publication des images Docker sur Docker Hub..."
+                    withCredentials([usernamePassword(
+                        credentialsId: env.DOCKER_HUB_CRED_ID,
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
+
+                        for (service_name in DOCKER_SERVICES_TO_PUSH) {
+                            def original_image = "exam-${service_name}"
+                            def new_image = "${env.DOCKER_HUB_USERNAME}/${original_image}"
+                            echo "  -> Publication de ${new_image}:latest"
+                            sh "docker tag \"$original_image\" \"$new_image:latest\"" // Re-taggage avant le push
+                            sh "docker push \"$new_image:latest\" || { echo \"Échec du push pour $new_image:latest\"; exit 1; }"
+                        }
+                        sh 'docker logout'
+                    }
                 }
             }
         }
