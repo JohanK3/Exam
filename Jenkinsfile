@@ -29,8 +29,8 @@ pipeline {
         PATH = "${JAVA_HOME}/bin:${env.PATH}" // Ajoute Java au PATH
 
         // Chemin direct vers l'installation du SonarScanner CLI
-        // ASSURE-TOI QUE CE CHEMIN EST CORRECT SUR TA VM !
-        SONAR_SCANNER_HOME = '/opt/sonar-scanner' // Chemin commun, à vérifier
+        // Cette variable est maintenant commentée car le stage SonarQube est désactivé.
+        // SONAR_SCANNER_HOME = '/opt/sonar-scanner' // <-- METS TON CHEMIN RÉEL ICI APRÈS L'INSTALLATION DU SCANNER CLI
     }
 
     stages {
@@ -205,6 +205,8 @@ pipeline {
             }
         }
 
+        // Le stage 'Analyse SonarQube' est commenté comme demandé.
+        /*
         stage('Analyse SonarQube') {
             steps {
                 script {
@@ -238,6 +240,7 @@ pipeline {
                 }
             }
         }
+        */
 
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
@@ -247,7 +250,7 @@ pipeline {
                     // Définir KUBECONFIG et MINIKUBE_HOME pour toutes les commandes dans ce bloc
                     // Idéalement, utilisez ${env.HOME} pour que cela s'adapte à l'utilisateur exécutant le pipeline.
                     withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
-                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
+                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb' // Rétablissement des options de démarrage
                         sh 'minikube addons enable ingress || true'
 
                         echo "Application des manifests des bases de données et des PVCs..."
@@ -300,27 +303,65 @@ pipeline {
                 }
             }
         }
+
+        stage('Tests de charge JMeter (sur Kubernetes)') {
+            steps {
+                script {
+                    echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
+                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
+                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                        def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                        def apiGatewayUrl = "http://${minikubeIp}/api"
+
+                        echo "URL cible pour JMeter: ${apiGatewayUrl}"
+                        sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                    }
+                    archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Scan de sécurité OWASP ZAP (sur Kubernetes)') {
+            steps {
+                script {
+                    echo "Lancement du scan OWASP ZAP sur les services déployés sur Kubernetes..."
+                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
+                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                        def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                        def apiGatewayUrl = "http://${minikubeIp}/api"
+
+                        sh '''
+                            chmod +x zap_scan.sh
+                            ./zap_scan.sh ''' + apiGatewayUrl + ''' ${ZAP_REPORT_FILE}
+                            if jq '.alerts[] | select(.risk == "High" or .risk == "Critical")' "${ZAP_REPORT_FILE}" | grep -q .; then
+                                echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${ZAP_REPORT_FILE}. Échec du pipeline."
+                                exit 1
+                            fi
+                        '''
+                    }
+                    archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: false
+                }
+            }
+        }
     }
 
-    // Le bloc post est conservé pour les messages de fin de pipeline
     post {
         always {
             echo "Pipeline terminé."
             echo "Vérification finale des ressources Kubernetes:"
-            // Définir KUBECONFIG pour les commandes kubectl dans le bloc post-build
+            // Utilisation de env.HOME pour KUBECONFIG dans le bloc post-build
             withEnv(["KUBECONFIG=${env.HOME}/.kube/config"]) {
                 sh 'kubectl get pods -o wide || true'
                 sh 'kubectl get services || true'
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
             }
-            // Utilisation de ${env.HOME} pour minikube service list et minikube ip
+            // Utilisation de env.HOME pour minikube service list et minikube ip
             withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
                 sh 'minikube service list || true'
                 sh 'minikube ip || true'
             }
             echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
-            // Le --rmi local est important pour supprimer les images construites localement par docker-compose
             sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
             sh 'docker-compose logs > docker-compose.log || true'
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
