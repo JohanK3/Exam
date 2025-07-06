@@ -115,7 +115,17 @@ pipeline {
         stage('Configure Minikube Docker') {
             steps {
                 echo "Configuration de l'environnement Docker pour Minikube..."
-                sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
+                script { // Ajout d'un bloc script pour la définition des variables locales
+                    // Définir KUBECONFIG et MINIKUBE_HOME pour les commandes minikube
+                    // Ceci est crucial pour que minikube status/start fonctionne correctement pour l'utilisateur Jenkins
+                    withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
+                        echo "Vérification et démarrage de Minikube si nécessaire..."
+                        // S'assure que Minikube est en cours d'exécution avant de tenter docker-env
+                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
+                        echo "Configuration de l'environnement Docker pour Minikube..."
+                        sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
+                    }
+                }
             }
         }
     }
