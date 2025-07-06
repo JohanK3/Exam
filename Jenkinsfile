@@ -3,9 +3,7 @@ pipeline {
 
     tools {
         maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        // Désactivation de l'installation automatique du JDK par Jenkins
-        // Nous allons utiliser le JDK déjà installé manuellement sur la VM
-        // jdk 'Java17' // Cette ligne est maintenant commentée
+        // La ligne 'jdk 'Java17'' a été retirée d'ici pour gérer JAVA_HOME manuellement
     }
 
     environment {
@@ -17,7 +15,7 @@ pipeline {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
 
         // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
+        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool (utilisé par withSonarQubeEnv)
         SONAR_HOST_URL = 'http://localhost:9000' // L'URL de SonarQube (sur la VM Jenkins)
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
 
@@ -29,6 +27,10 @@ pipeline {
         // Assure-toi que ce chemin est correct sur ta VM !
         JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // Chemin typique pour OpenJDK 17 sur Ubuntu
         PATH = "${JAVA_HOME}/bin:${env.PATH}" // Ajoute Java au PATH
+
+        // Chemin direct vers l'installation du SonarScanner CLI
+        // ASSURE-TOI QUE CE CHEMIN EST CORRECT SUR TA VM !
+        SONAR_SCANNER_HOME = '/opt/sonar-scanner' // Chemin commun, à vérifier
     }
 
     stages {
@@ -228,10 +230,73 @@ pipeline {
                         dir("frontend") {
                             echo "  -> Analyse SonarQube pour le frontend..."
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                // Utilisation du chemin direct vers le SonarScanner CLI, sans tools.get()
+                                sh "${env.SONAR_SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
                         }
                     }
+                }
+            }
+        }
+
+        stage('Déploiement sur Kubernetes (Minikube)') {
+            steps {
+                script {
+                    echo "Déploiement sur Kubernetes (Minikube)..."
+
+                    // Définir KUBECONFIG et MINIKUBE_HOME pour toutes les commandes dans ce bloc
+                    // Idéalement, utilisez ${env.HOME} pour que cela s'adapte à l'utilisateur exécutant le pipeline.
+                    withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
+                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
+                        sh 'minikube addons enable ingress || true'
+
+                        echo "Application des manifests des bases de données et des PVCs..."
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
+
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
+
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
+                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
+
+                        echo "Attente des déploiements des bases de données..."
+                        sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
+
+
+                        echo "Application des manifests des services d'infrastructure et principaux..."
+                        sh 'kubectl apply -f k8s/eureka/'
+                        sh 'kubectl apply -f k8s/api-gateway/'
+                        sh 'kubectl apply -f k8s/frontend/'
+
+                        echo "Attente du déploiement d'Eureka..."
+                        sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
+
+
+                        echo "Application des manifests des services métiers..."
+                        sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/answer-service/service.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/exam-service/service.yaml'
+                        sh 'kubectl apply -f k8s/course-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/course-service/service.yaml'
+                        sh 'kubectl apply -f k8s/user-service/deployment.yaml'
+                        sh 'kubectl apply -f k8s/user-service/service.yaml'
+
+                        echo "Attente des déploiements de tous les services métiers..."
+                        sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
+                        sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
+
+                        echo "Application du manifest Ingress..."
+                        sh 'kubectl apply -f k8s/ingress.yaml'
+                    } // Fin du bloc withEnv pour le stage de déploiement
                 }
             }
         }
@@ -241,9 +306,27 @@ pipeline {
     post {
         always {
             echo "Pipeline terminé."
+            echo "Vérification finale des ressources Kubernetes:"
+            // Définir KUBECONFIG pour les commandes kubectl dans le bloc post-build
+            withEnv(["KUBECONFIG=${env.HOME}/.kube/config"]) {
+                sh 'kubectl get pods -o wide || true'
+                sh 'kubectl get services || true'
+                sh 'kubectl get deployments || true'
+                sh 'kubectl get ingress || true'
+            }
+            // Utilisation de ${env.HOME} pour minikube service list et minikube ip
+            withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
+                sh 'minikube service list || true'
+                sh 'minikube ip || true'
+            }
+            echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
+            // Le --rmi local est important pour supprimer les images construites localement par docker-compose
+            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
+            sh 'docker-compose logs > docker-compose.log || true'
+            archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
         }
         success {
-            echo 'Pipeline réussi!'
+            echo 'Pipeline réussi! Les services sont déployés sur Kubernetes.'
         }
         failure {
             echo 'Pipeline échoué! Veuillez vérifier les logs pour les erreurs.'
