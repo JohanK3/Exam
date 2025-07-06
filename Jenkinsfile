@@ -3,7 +3,9 @@ pipeline {
 
     tools {
         maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        jdk 'Java17'    // Vérifiez le nom exact de votre installation JDK
+        // Désactivation de l'installation automatique du JDK par Jenkins
+        // Nous allons utiliser le JDK déjà installé manuellement sur la VM
+        // jdk 'Java17' // Cette ligne est maintenant commentée
     }
 
     environment {
@@ -22,6 +24,11 @@ pipeline {
         // Variables pour ZAP
         JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
         ZAP_REPORT_FILE = 'zap_report.json'
+
+        // Définir JAVA_HOME explicitement pour Maven, en pointant vers ton installation OpenJDK 17
+        // Assure-toi que ce chemin est correct sur ta VM !
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // Chemin typique pour OpenJDK 17 sur Ubuntu
+        PATH = "${JAVA_HOME}/bin:${env.PATH}" // Ajoute Java au PATH
     }
 
     stages {
@@ -60,7 +67,7 @@ pipeline {
                     echo "Lancement du linting pour tous les Dockerfiles..."
                     for (dockerfile in DOCKERFILES_TO_LINT) {
                         echo "  -> Linting de ${dockerfile}"
-                        sh "docker run --rm -i hadolint/hadolint < ${dockerfile} || true"
+                        sh "docker run --rm -i hadolint < ${dockerfile} || true"
                     }
                 }
             }
