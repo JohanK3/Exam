@@ -45,7 +45,7 @@ pipeline {
                 echo "Récupération du code source depuis GitHub..."
                 // Augmentation du timeout pour le clonage Git, car le dépôt est volumineux
                 timeout(time: 300, unit: 'SECONDS') { // Définit un timeout de 5 minutes (300 secondes)
-                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://JohanK3/Exam.git'
+                    git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git' // Correction ici !
                 }
             }
         }
