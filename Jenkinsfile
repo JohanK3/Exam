@@ -73,10 +73,9 @@ pipeline {
             }
         }
 
-        stage('Compilation des modules Maven communs') {
+        stage('Compilation Maven') { // Ce stage regroupe les compilations communes et métiers
             steps {
                 script {
-                    // La liste COMMON_MODULES est définie à l'intérieur du bloc 'script'
                     def COMMON_MODULES = [
                         'backend/common-exam',
                         'backend/common-service',
@@ -85,18 +84,10 @@ pipeline {
                     echo "Compilation des modules Maven communs..."
                     for (module in COMMON_MODULES) {
                         dir(module) {
-                            // Utilise l'outil Maven configuré dans Jenkins
-                            sh 'mvn clean install -DskipTests' // skipTests car les tests seront exécutés dans une étape dédiée
+                            sh 'mvn clean install -DskipTests'
                         }
                     }
-                }
-            }
-        }
 
-        stage('Compilation des services Maven métiers') {
-            steps {
-                script {
-                    // La liste BACKEND_MODULES est définie à l'intérieur du bloc 'script'
                     def BACKEND_MODULES = [
                         'backend/eureka-service',
                         'backend/api-gateway-service',
@@ -111,8 +102,7 @@ pipeline {
                         def moduleName = module
                         parallelJobs[moduleName] = {
                             dir(moduleName) {
-                                // Utilise l'outil Maven configuré dans Jenkins
-                                sh 'mvn clean install -DskipTests' // skipTests car les tests seront exécutés dans une étape dédiée
+                                sh 'mvn clean install -DskipTests'
                             }
                         }
                     }
@@ -120,13 +110,13 @@ pipeline {
                 }
             }
         }
-    }
 
-    // --- Phase 3: Gestion des Images Docker ---
-    stage('Configure Minikube Docker') {
-        steps{
-            echo "Configuration de l'environnement Docker pour Minikube..."
-            sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
+        // --- Phase 3: Gestion des Images Docker ---
+        stage('Configure Minikube Docker') {
+            steps {
+                echo "Configuration de l'environnement Docker pour Minikube..."
+                sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
+            }
         }
     }
 
