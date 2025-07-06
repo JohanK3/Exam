@@ -160,7 +160,7 @@ pipeline {
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                // exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
+                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
                             fi
                         done
                     '''
