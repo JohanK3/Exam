@@ -204,30 +204,30 @@ pipeline {
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
                 script {
-                    echo "Déploiement sur Kubernetes (Minikube)..."
+                    echo "Déploiement sur Kubernetes..."
 
                     // Utilisation de env.HOME pour KUBECONFIG et MINIKUBE_HOME, car Minikube a été configuré pour l'utilisateur Jenkins
                     withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
                         sh 'minikube status || minikube start'
                         sh 'minikube addons enable ingress || true'
 
-                        echo "Application des manifests des bases de données et des PVCs..."
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
+                        // echo "Application des manifests des bases de données et des PVCs..."
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
 
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
 
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
-                        echo "Attente des déploiements des bases de données..."
-                        sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
+                        // echo "Attente des déploiements des bases de données..."
+                        // sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
 
 
                         echo "Application des manifests des services d'infrastructure et principaux..."
@@ -239,21 +239,21 @@ pipeline {
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
 
 
-                        echo "Application des manifests des services métiers..."
-                        sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/service.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/service.yaml'
-                        sh 'kubectl apply -f k8s/course-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/course-service/service.yaml'
-                        sh 'kubectl apply -f k8s/user-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/user-service/service.yaml'
+                        // echo "Application des manifests des services métiers..."
+                        // sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/course-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/course-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/service.yaml'
 
-                        echo "Attente des déploiements de tous les services métiers..."
-                        sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
+                        // echo "Attente des déploiements de tous les services métiers..."
+                        // sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
 
                         echo "Application du manifest Ingress..."
                         sh 'kubectl apply -f k8s/ingress.yaml'
