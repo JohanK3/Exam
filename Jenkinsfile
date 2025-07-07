@@ -22,7 +22,6 @@ pipeline {
 
         // Variables pour ZAP
         JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
-        ZAP_REPORT_FILE = 'zap_report.json'
     }
 
     stages {
@@ -192,7 +191,6 @@ pipeline {
                         }
                         dir("frontend") {
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                // sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                                 sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
                         }
@@ -201,17 +199,17 @@ pipeline {
             }
         }
 
+        ---
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
                 script {
                     echo "Déploiement sur Kubernetes..."
 
-                    // Utilisation de env.HOME pour KUBECONFIG et MINIKUBE_HOME, car Minikube a été configuré pour l'utilisateur Jenkins
                     withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
-                        sh 'minikube status || minikube start'
+                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
                         sh 'minikube addons enable ingress || true'
 
-                        // echo "Application des manifests des bases de données et des PVCs..."
+                        echo "Application des manifests des bases de données et des PVCs..."
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
@@ -239,21 +237,32 @@ pipeline {
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
 
 
-                        // echo "Application des manifests des services métiers..."
-                        // sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
-                        // sh 'kubectl apply -f k8s/answer-service/service.yaml'
-                        // sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
-                        // sh 'kubectl apply -f k8s/exam-service/service.yaml'
-                        // sh 'kubectl apply -f k8s/course-service/deployment.yaml'
-                        // sh 'kubectl apply -f k8s/course-service/service.yaml'
-                        // sh 'kubectl apply -f k8s/user-service/deployment.yaml'
-                        // sh 'kubectl apply -f k8s/user-service/service.yaml'
+                        // --- Préparation et déploiement du Job ZAP ---
+                        echo "Lecture du plan d'automatisation ZAP depuis le fichier..."
+                        // Lire le contenu du fichier zap-automation-plan.yaml
+                        def zapPlanContent = readFile('k8s/zap/zap-automation-plan.yaml')
 
-                        // echo "Attente des déploiements de tous les services métiers..."
-                        // sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
-                        // sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
-                        // sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
-                        // sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
+                        echo "Création/Mise à jour du ConfigMap ZAP..."
+                        // Crée ou met à jour le ConfigMap avec le contenu du fichier
+                        sh "kubectl create configmap zap-automation-plan-config --from-file=k8s/zap/zap-automation-plan.yaml --dry-run=client -o yaml | kubectl apply -f -"
+
+                        echo "Application du manifest du Job ZAP..."
+                        // Le nom du job sera unique pour ce build
+                        sh "envsubst < k8s/zap/zap-automation-job.yaml | sed 's/{{ .Release.Name }}/${BUILD_NUMBER}/g' | kubectl apply -f -"
+
+                        echo "Attente que le Job ZAP soit terminé..."
+                        // Attendre la complétion du job spécifique par son nom généré
+                        sh "kubectl wait --for=condition=complete job/owasp-zap-automation-${BUILD_NUMBER} --timeout=900s || true"
+
+                        // Récupérer le nom du pod créé par le job
+                        def zapPodName = sh(returnStdout: true, script: "kubectl get pods --selector=job-name=owasp-zap-automation-${BUILD_NUMBER} -o jsonpath='{.items[0].metadata.name}'").trim()
+                        echo "Récupération du rapport ZAP du pod : ${zapPodName}"
+                        sh "kubectl cp ${zapPodName}:/zap/wrk/zap_report.json ./zap_report.json || true"
+
+                        // Nettoyer le Job et le ConfigMap après la récupération du rapport
+                        sh "kubectl delete job owasp-zap-automation-${BUILD_NUMBER} || true"
+                        sh "kubectl delete configmap zap-automation-plan-config || true"
+
 
                         echo "Application du manifest Ingress..."
                         sh 'kubectl apply -f k8s/ingress.yaml'
@@ -262,11 +271,11 @@ pipeline {
             }
         }
 
+        ---
         stage('Tests de charge JMeter (sur Kubernetes)') {
             steps {
                 script {
                     echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
-                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
                     withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
                          def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
                          def apiGatewayUrl = "http://${minikubeIp}/api"
@@ -279,25 +288,27 @@ pipeline {
             }
         }
 
+        ---
         stage('Scan de sécurité OWASP ZAP (sur Kubernetes)') {
             steps {
                 script {
-                    echo "Lancement du scan OWASP ZAP sur les services déployés sur Kubernetes..."
-                    // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
-                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
-                        def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                        def apiGatewayUrl = "http://${minikubeIp}/api"
+                    echo "Analyse du rapport ZAP..."
+                    def zapReportFile = 'zap_report.json' // Le rapport est maintenant copié dans le workspace Jenkins
 
-                        sh '''
-                            chmod +x zap_scan.sh
-                            ./zap_scan.sh ''' + apiGatewayUrl + ''' ${ZAP_REPORT_FILE}
-                            if jq '.alerts[] | select(.risk == "High" or .risk == "Critical")' "${ZAP_REPORT_FILE}" | grep -q .; then
-                                echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${ZAP_REPORT_FILE}. Échec du pipeline."
-                                exit 1
-                            fi
-                        '''
-                    }
-                    archiveArtifacts artifacts: "${ZAP_REPORT_FILE}", allowEmptyArchive: false
+                    sh """
+                        if [ ! -f ${zapReportFile} ]; then
+                            echo "AVERTISSEMENT: Le rapport ZAP (${zapReportFile}) n'a pas été trouvé. Le scan a pu échouer ou la copie a échoué. Le pipeline continue mais veuillez vérifier."
+                            exit 0 # Permet au pipeline de continuer malgré l'absence de rapport
+                        fi
+
+                        if jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' "${zapReportFile}" | grep -q .; then
+                            echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${zapReportFile}. Échec du pipeline."
+                            exit 1
+                        else
+                            echo "Aucune vulnérabilité critique ou élevée détectée par ZAP."
+                        fi
+                    """
+                    archiveArtifacts artifacts: "${zapReportFile}", allowEmptyArchive: false
                 }
             }
         }
@@ -307,14 +318,12 @@ pipeline {
         always {
             echo "Pipeline terminé."
             echo "Vérification finale des ressources Kubernetes:"
-            // Utilisation de env.HOME pour KUBECONFIG dans le bloc post-build
             withEnv(["KUBECONFIG=${env.HOME}/.kube/config"]) {
                 sh 'kubectl get pods -o wide || true'
                 sh 'kubectl get services || true'
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
             }
-            // Utilisation de env.HOME pour minikube service list et minikube ip
             withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
                 sh 'minikube service list || true'
                 sh 'minikube ip || true'

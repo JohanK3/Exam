@@ -1,0 +1,38 @@
+# k8s/zap/zap-automation-plan.yaml
+env:
+  contexts:
+    - excludePaths: []
+      name: baseline
+      urls:
+        - http://frontend-service:80 # Utilisez le nom de service Kubernetes de votre frontend et son port
+        - http://api-gateway-service:80 # Utilisez le nom de service Kubernetes de votre API Gateway et son port
+  parameters:
+    failOnError: true
+    progressToStdout: false
+  proxy:
+  # Le proxy n'est pas nécessaire ici car ZAP s'exécute directement le scan
+  # dans le pod, il n'y a pas d'interception externe.
+jobs:
+  - parameters:
+      enableTags: false
+      maxAlertsPerRule: 10
+    type: passiveScan-config
+  - parameters:
+      maxDuration: 1
+      url: http://frontend-service:80 # URL de départ pour le spider (nom de service interne)
+    type: spider
+  - parameters:
+      maxDuration: 0
+    type: passiveScan-wait
+  - parameters:
+      format: Long
+      summaryFile: /zap/wrk/zap_out.json
+    rules: []
+    type: outputSummary
+  - parameters:
+      reportDescription: ''
+      reportDir: /zap/wrk/
+      reportFile: zap_report.json # Le nom du fichier de rapport final
+      reportTitle: ZAP Scanning Report
+      template: traditional-json
+    type: report

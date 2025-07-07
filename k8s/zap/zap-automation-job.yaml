@@ -1,0 +1,59 @@
+# k8s/zap/zap-automation-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: owasp-zap-automation-{{ .Release.Name }} # Le nom sera dynamique avec Jenkins
+spec:
+  template:
+    metadata:
+      labels:
+        app: owasp-zap-automation
+    spec:
+      containers:
+      - name: zap-automation
+        image: owasp/zap2docker-stable
+        command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
+        volumeMounts:
+        - name: zap-plan-volume
+          mountPath: /zap/zap-automation-plan.yaml
+          subPath: zap-automation-plan.yaml # Monte le fichier spécifique du ConfigMap
+        - name: zap-work-volume
+          mountPath: /zap/wrk # Pour les rapports de sortie
+      restartPolicy: Never # Le pod ne redémarre pas après l'exécution du Job
+      volumes:
+      - name: zap-plan-volume
+        configMap:
+          name: zap-automation-plan-config # Le ConfigMap qui contient le plan ZAP
+      - name: zap-work-volume
+        emptyDir: {} # Un volume temporaire pour le rapport
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zap-automation-plan-config # Le nom du ConfigMap
+data:
+  # Le contenu de votre zap-automation-plan.yaml sera copié ici par Jenkins
+  # Ceci sera géré par Jenkins au moment du déploiement
+  # Le fichier zap-automation-plan.yaml dans k8s/zap/ est la source
+  # Pour l'instant, on laisse cette section vide ou on met un placeholder.
+  # Le Jenkinsfile va créer ou mettre à jour ce ConfigMap dynamiquement.
+  zap-automation-plan.yaml: |
+    # Ce contenu sera remplacé par le fichier réel via Jenkins.
+    # Placeholder:
+    env:
+      contexts:
+        - excludePaths: []
+          name: baseline
+          urls:
+            - http://frontend-service:80
+            - http://api-gateway-service:80
+    jobs:
+      - type: passiveScan-config
+      - type: spider
+        url: http://frontend-service:80
+      - type: passiveScan-wait
+      - type: outputSummary
+        summaryFile: /zap/wrk/zap_out.json
+      - type: report
+        reportFile: zap_report.json
