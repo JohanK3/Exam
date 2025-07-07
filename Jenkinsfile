@@ -1,9 +1,9 @@
 pipeline {
-    agent any // Le pipeline peut s'exécuter sur n'importe quel agent disponible
+    agent any
 
     tools {
         maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        // La ligne 'jdk 'Java17'' a été retirée d'ici pour gérer JAVA_HOME manuellement
+        jdk 'Java17'    // Vérifiez le nom exact de votre installation JDK
     }
 
     environment {
@@ -15,49 +15,36 @@ pipeline {
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
 
         // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool (utilisé par withSonarQubeEnv)
-        SONAR_HOST_URL = 'http://localhost:9000' // L'URL de SonarQube (sur la VM Jenkins)
+        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
+        // L'URL de SonarQube sera l'IP de la VM Jenkins elle-même, car SonarQube est installé directement dessus
+        SONAR_HOST_URL = 'http://localhost:9000' // Ou l'IP de la VM si Jenkins ne tourne pas sur localhost
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
 
         // Variables pour ZAP
         JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
         ZAP_REPORT_FILE = 'zap_report.json'
-
-        // Définir JAVA_HOME explicitement pour Maven, en pointant vers ton installation OpenJDK 17
-        // Assure-toi que ce chemin est correct sur ta VM !
-        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // Chemin typique pour OpenJDK 17 sur Ubuntu
-        PATH = "${JAVA_HOME}/bin:${env.PATH}" // Ajoute Java au PATH
-
-        // Chemin direct vers l'installation du SonarScanner CLI
-        // Cette variable est maintenant commentée car le stage SonarQube est désactivé.
-        // SONAR_SCANNER_HOME = '/opt/sonar-scanner' // <-- METS TON CHEMIN RÉEL ICI APRÈS L'INSTALLATION DU SCANNER CLI
     }
 
     stages {
-        // --- Phase 1: Préparation et Récupération du Code ---
         stage('Nettoyage de l’espace de travail') {
             steps {
-                echo "Nettoyage de l'espace de travail Jenkins..."
-                cleanWs() // Nettoie le répertoire de travail du pipeline
+                cleanWs()
             }
         }
 
         stage('Récupération du code source') {
             steps {
-                echo "Récupération du code source depuis GitHub..."
-                // Augmentation du timeout pour le clonage Git, car le dépôt est volumineux
-                timeout(time: 300, unit: 'SECONDS') { // Définit un timeout de 5 minutes (300 secondes)
+                // Augmentation du timeout pour le clonage Git
+                timeout(time: 300, unit: 'SECONDS') { // Augmente le timeout à 5 minutes (300 secondes)
                     git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
                 }
             }
         }
 
-        // --- Phase 2: Analyse Statique et Compilation ---
         stage('Linting des Dockerfiles') {
             steps {
                 script {
-                    // La liste DOCKERFILES_TO_LINT est définie à l'intérieur du bloc 'script'
-                    def DOCKERFILES_TO_LINT = [
+                    def dockerfiles = [
                         'backend/eureka-service/Dockerfile',
                         'backend/api-gateway-service/Dockerfile',
                         'backend/answer-service/Dockerfile',
@@ -66,31 +53,29 @@ pipeline {
                         'backend/user-service/Dockerfile',
                         'frontend/Dockerfile'
                     ]
-                    echo "Lancement du linting pour tous les Dockerfiles..."
-                    for (dockerfile in DOCKERFILES_TO_LINT) {
-                        echo "  -> Linting de ${dockerfile}"
-                        sh "docker run --rm -i hadolint < ${dockerfile} || true"
+                    for (dockerfile in dockerfiles) {
+                        echo "Lancement du linting pour ${dockerfile}"
+                        sh "docker run --rm -i hadolint/hadolint < ${dockerfile} || true"
                     }
                 }
             }
         }
 
-        stage('Compilation Maven') { // Ce stage regroupe les compilations communes et métiers
+        stage('Compilation Maven') {
             steps {
                 script {
-                    def COMMON_MODULES = [
+                    def commonModules = [
                         'backend/common-exam',
                         'backend/common-service',
                         'backend/common-student'
                     ]
-                    echo "Compilation des modules Maven communs..."
-                    for (module in COMMON_MODULES) {
+                    for (module in commonModules) {
                         dir(module) {
                             sh 'mvn clean install -DskipTests'
                         }
                     }
 
-                    def BACKEND_MODULES = [
+                    def serviceModules = [
                         'backend/eureka-service',
                         'backend/api-gateway-service',
                         'backend/answer-service',
@@ -98,9 +83,8 @@ pipeline {
                         'backend/course-service',
                         'backend/user-service'
                     ]
-                    echo "Compilation des services Maven métiers en parallèle..."
                     def parallelJobs = [:]
-                    for (module in BACKEND_MODULES) {
+                    for (module in serviceModules) {
                         def moduleName = module
                         parallelJobs[moduleName] = {
                             dir(moduleName) {
@@ -113,28 +97,16 @@ pipeline {
             }
         }
 
-        // --- Phase 3: Gestion des Images Docker ---
         stage('Configure Minikube Docker') {
             steps {
                 echo "Configuration de l'environnement Docker pour Minikube..."
-                script { // Ajout d'un bloc script pour la définition des variables locales
-                    // Définir KUBECONFIG et MINIKUBE_HOME pour les commandes minikube
-                    // Ceci est crucial pour que minikube status/start fonctionne correctement pour l'utilisateur Jenkins
-                    withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
-                        echo "Vérification et démarrage de Minikube si nécessaire..."
-                        // S'assure que Minikube est en cours d'exécution avant de tenter docker-env
-                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
-                        echo "Configuration de l'environnement Docker pour Minikube..."
-                        sh 'eval $(minikube docker-env)' // Redirige les commandes 'docker' vers le démon Docker de Minikube
-                    }
-                }
+                sh 'eval $(minikube docker-env)'
             }
         }
 
         stage('Construction des Images Docker') {
             steps {
                 echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
-                // Utilise la variable d'environnement DOCKER_COMPOSE_FILE définie globalement
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
             }
         }
@@ -142,8 +114,7 @@ pipeline {
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
-                    // La liste IMAGES_TO_SCAN est définie à l'intérieur du bloc 'script'
-                    def IMAGES_TO_SCAN = [
+                    def imagesToScan = [
                         "exam-eureka-service:latest",
                         "exam-api-gateway-service:latest",
                         "exam-answer-service:latest",
@@ -152,9 +123,9 @@ pipeline {
                         "exam-user-service:latest",
                         "exam-frontend:latest"
                     ]
-                    echo "Lancement du scan Trivy pour toutes les images Docker..."
-                    for (image in IMAGES_TO_SCAN) {
-                        echo "  -> Scan Trivy pour l'image: ${image}"
+
+                    for (image in imagesToScan) {
+                        echo "Lancement du scan Trivy pour l'image: ${image}"
                         sh "trivy image --format json --output trivy-${image.replaceAll('/', '-').replaceAll(':', '_')}.json ${image}"
                     }
 
@@ -162,7 +133,7 @@ pipeline {
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1 // Décommenter pour faire échouer le pipeline en cas de vulnérabilités critiques
+                                # exit 1
                             fi
                         done
                     '''
@@ -174,17 +145,6 @@ pipeline {
         stage('Publication sur Docker Hub') {
             steps {
                 script {
-                    // La liste DOCKER_SERVICES_TO_PUSH est définie à l'intérieur du bloc 'script'
-                    def DOCKER_SERVICES_TO_PUSH = [
-                        'eureka-service',
-                        'api-gateway-service',
-                        'answer-service',
-                        'exam-service',
-                        'course-service',
-                        'user-service',
-                        'frontend'
-                    ]
-                    echo "Publication des images Docker sur Docker Hub..."
                     withCredentials([usernamePassword(
                         credentialsId: env.DOCKER_HUB_CRED_ID,
                         usernameVariable: 'DOCKER_USERNAME',
@@ -192,37 +152,41 @@ pipeline {
                     )]) {
                         sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
 
-                        for (service_name in DOCKER_SERVICES_TO_PUSH) {
-                            def original_image = "exam-${service_name}"
-                            def new_image = "${env.DOCKER_HUB_USERNAME}/${original_image}"
-                            echo "  -> Publication de ${new_image}:latest"
-                            sh "docker tag \"$original_image\" \"$new_image:latest\"" // Re-taggage avant le push
-                            sh "docker push \"$new_image:latest\" || { echo \"Échec du push pour $new_image:latest\"; exit 1; }"
-                        }
-                        sh 'docker logout'
+                        sh '''
+                            for service_name in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
+                                original_image="exam-${service_name}"
+                                new_image="${DOCKER_HUB_USERNAME}/${original_image}"
+
+                                echo "Taggage et publication de l'image : ${original_image} vers ${new_image}:latest"
+                                docker tag "$original_image" "$new_image:latest"
+                                docker push "$new_image:latest" || {
+                                    echo "Échec du push pour $new_image:latest"
+                                    exit 1
+                                }
+                                echo "Image $new_image:latest publiée avec succès"
+                            done
+
+                            docker logout
+                        '''
                     }
                 }
             }
         }
 
-        // Le stage 'Analyse SonarQube' est commenté comme demandé.
-        /*
         stage('Analyse SonarQube') {
             steps {
                 script {
-                    // La liste servicesToScan est définie à l'intérieur du bloc 'script'
-                    def servicesToScan = [
-                        'api-gateway-service',
-                        'answer-service',
-                        'course-service',
-                        'eureka-service',
-                        'exam-service',
-                        'user-service'
-                    ]
-                    echo "Lancement de l'analyse SonarQube pour les services backend et le frontend..."
                     withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
+                        def servicesToScan = [
+                            'api-gateway-service',
+                            'answer-service',
+                            'course-service',
+                            'eureka-service',
+                            'exam-service',
+                            'user-service'
+                        ]
                         for (serviceDir in servicesToScan) {
-                            echo "  -> Analyse SonarQube pour ${serviceDir}..."
+                            echo "Lancement de l'analyse SonarQube pour ${serviceDir}..."
                             dir("backend/${serviceDir}") {
                                 withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
                                     sh "mvn sonar:sonar -Dsonar.projectKey=exam-${serviceDir} -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
@@ -230,17 +194,14 @@ pipeline {
                             }
                         }
                         dir("frontend") {
-                            echo "  -> Analyse SonarQube pour le frontend..."
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                // Utilisation du chemin direct vers le SonarScanner CLI, sans tools.get()
-                                sh "${env.SONAR_SCANNER_HOME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
                         }
                     }
                 }
             }
         }
-        */
 
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
@@ -254,22 +215,24 @@ pipeline {
                         sh 'minikube addons enable ingress || true'
 
                         echo "Application des manifests des bases de données et des PVCs..."
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
+                        // Déploiement des bases de données commenté comme demandé
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
 
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
 
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
-                        sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
 
                         echo "Attente des déploiements des bases de données..."
-                        sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
+                        // Attente des déploiements des bases de données commentée comme demandé
+                        // sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
 
 
                         echo "Application des manifests des services d'infrastructure et principaux..."
@@ -282,20 +245,22 @@ pipeline {
 
 
                         echo "Application des manifests des services métiers..."
-                        sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/answer-service/service.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/exam-service/service.yaml'
-                        sh 'kubectl apply -f k8s/course-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/course-service/service.yaml'
-                        sh 'kubectl apply -f k8s/user-service/deployment.yaml'
-                        sh 'kubectl apply -f k8s/user-service/service.yaml'
+                        // Déploiement des services métiers commenté comme demandé
+                        // sh 'kubectl apply -f k8s/answer-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/answer-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/exam-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/course-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/course-service/service.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/deployment.yaml'
+                        // sh 'kubectl apply -f k8s/user-service/service.yaml'
 
                         echo "Attente des déploiements de tous les services métiers..."
-                        sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
-                        sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
+                        // Attente des déploiements des services métiers commentée comme demandé
+                        // sh 'kubectl wait --for=condition=Available deployment/answer-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/exam-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/course-service --timeout=300s || true'
+                        // sh 'kubectl wait --for=condition=Available deployment/user-service --timeout=300s || true'
 
                         echo "Application du manifest Ingress..."
                         sh 'kubectl apply -f k8s/ingress.yaml'
@@ -310,11 +275,11 @@ pipeline {
                     echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
                     // Utilisation de env.HOME pour s'assurer que minikube ip fonctionne correctement pour l'utilisateur Jenkins
                     withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
-                        def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                        def apiGatewayUrl = "http://${minikubeIp}/api"
+                         def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                         def apiGatewayUrl = "http://${minikubeIp}/api"
 
-                        echo "URL cible pour JMeter: ${apiGatewayUrl}"
-                        sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                         echo "URL cible pour JMeter: ${apiGatewayUrl}"
+                         sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
                     }
                     archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
                 }
