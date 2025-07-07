@@ -11,8 +11,8 @@ spec:
     spec:
       containers:
       - name: zap-automation
-        # C'est la ligne à changer !
-        image: zaproxy/zap-stable:stable # Utilisez "stable" comme balise
+        # La balise de l'image a été changée de ':stable' à ':latest'
+        image: zaproxy/zap-stable:latest # Utilisez "latest" comme balise
         command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
         volumeMounts:
         - name: zap-plan-volume
