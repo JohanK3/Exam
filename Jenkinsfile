@@ -16,8 +16,7 @@ pipeline {
 
         // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
-        // L'URL de SonarQube sera l'IP de la VM Jenkins elle-même, car SonarQube est installé directement dessus
-        SONAR_HOST_URL = 'http://localhost:9000' // Ou l'IP de la VM si Jenkins ne tourne pas sur localhost
+        SONAR_HOST_URL = 'http://localhost:9000' // L'URL de SonarQube (sur la VM Jenkins)
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
 
         // Variables pour ZAP
@@ -49,13 +48,14 @@ pipeline {
         stage('Linting des Dockerfiles') {
             steps {
                 script {
+                    // Liste des Dockerfiles à linter, réduite aux services que tu déploies
                     def dockerfiles = [
                         'backend/eureka-service/Dockerfile',
                         'backend/api-gateway-service/Dockerfile',
-                        'backend/answer-service/Dockerfile',
-                        'backend/exam-service/Dockerfile',
-                        'backend/course-service/Dockerfile',
-                        'backend/user-service/Dockerfile',
+                        // 'backend/answer-service/Dockerfile', // Commenté
+                        // 'backend/exam-service/Dockerfile',    // Commenté
+                        // 'backend/course-service/Dockerfile',  // Commenté
+                        // 'backend/user-service/Dockerfile',    // Commenté
                         'frontend/Dockerfile'
                     ]
                     for (dockerfile in dockerfiles) {
@@ -80,11 +80,16 @@ pipeline {
                         }
                     }
 
-                    // Seuls Eureka, API Gateway et Frontend sont compilés pour le déploiement simplifié
+                    // Seuls Eureka et API Gateway sont compilés pour le déploiement simplifié
+                    // Le frontend est commenté car il ne semble pas être un projet Maven
                     def serviceModules = [
                         'backend/eureka-service',
-                        'backend/api-gateway-service',
-                        'backend/frontend' // Le frontend est aussi un module Maven s'il est basé sur Spring Boot
+                        'backend/api-gateway-service'
+                        // 'backend/answer-service', // Commenté
+                        // 'backend/exam-service',    // Commenté
+                        // 'backend/course-service',  // Commenté
+                        // 'backend/user-service',    // Commenté
+                        // 'backend/frontend' // Commenté car il n'y a pas de pom.xml dans ce répertoire
                     ]
                     def parallelJobs = [:]
                     for (module in serviceModules) {
@@ -122,7 +127,7 @@ pipeline {
                     def imagesToScan = [
                         "exam-eureka-service:latest",
                         "exam-api-gateway-service:latest",
-                        "exam-frontend:latest"
+                        "exam-frontend:latest" // Garder le frontend ici s'il est construit par Dockerfile
                     ]
 
                     for (image in imagesToScan) {
@@ -150,7 +155,7 @@ pipeline {
                     def DOCKER_SERVICES_TO_PUSH = [
                         'eureka-service',
                         'api-gateway-service',
-                        'frontend'
+                        'frontend' // Garder le frontend ici s'il est construit par Dockerfile
                     ]
                     echo "Publication des images Docker sur Docker Hub..."
                     withCredentials([usernamePassword(
@@ -217,7 +222,8 @@ pipeline {
                     // Définir KUBECONFIG et MINIKUBE_HOME pour toutes les commandes dans ce bloc
                     // Idéalement, utilisez ${env.HOME} pour que cela s'adapte à l'utilisateur exécutant le pipeline.
                     withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
-                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb' // Rétablissement des options de démarrage
+                        // S'assure que Minikube est en cours d'exécution avec les bonnes ressources
+                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
                         sh 'minikube addons enable ingress || true'
 
                         echo "Application des manifests des bases de données et des PVCs..."
