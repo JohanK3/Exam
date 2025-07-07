@@ -4,29 +4,31 @@ kind: Ingress
 metadata:
   name: exam-project-ingress
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$1 # Optionnel, dépend de votre configuration
+    # Cette annotation réécrit le chemin. Par exemple, une requête vers /api/users
+    # sera réécrite en /users avant d'être envoyée au service cible.
+    # Si vos services s'attendent à recevoir le chemin complet (ex: /api/users),
+    # supprimez cette annotation.
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
     - http:
         paths:
-          - path: /api/(.*) # Toutes les requêtes commençant par /api/
+          # Pour l'API Gateway : toutes les requêtes commençant par /api
+          # Le pathType: Prefix signifie que tout ce qui commence par /api correspond.
+          # Par exemple, /api/users, /api/products, etc.
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: api-gateway-service # Nom du service de votre API Gateway
                 port:
                   number: 8080 # Port de votre service API Gateway
-          - path: / # Toutes les autres requêtes (pour le frontend)
+          # Pour le Frontend : toutes les autres requêtes (la racine /)
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: frontend # Nom du service de votre Frontend
                 port:
                   number: 80 # Port de votre service Frontend
-          - path: /sonarqube/(.*) # Requêtes pour SonarQube
-            pathType: Prefix
-            backend:
-              service:
-                name: sonarqube-service # Nom du service de SonarQube
-                port:
-                  number: 9000 # Port de votre service SonarQube
+          # L'entrée pour SonarQube a été retirée car il est installé sur la VM et non dans Minikube.
