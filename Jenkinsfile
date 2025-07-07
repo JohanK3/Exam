@@ -3,7 +3,7 @@ pipeline {
 
     tools {
         maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        jdk 'Java17'    // Vérifiez le nom exact de votre installation JDK
+        // La ligne 'jdk 'Java17'' a été retirée d'ici pour gérer JAVA_HOME manuellement
     }
 
     environment {
@@ -23,6 +23,11 @@ pipeline {
         // Variables pour ZAP
         JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
         ZAP_REPORT_FILE = 'zap_report.json'
+
+        // Définir JAVA_HOME explicitement pour Maven, en pointant vers ton installation OpenJDK 17
+        // Assure-toi que ce chemin est correct sur ta VM !
+        JAVA_HOME = '/usr/lib/jvm/java-17-openjdk-amd64' // Chemin typique pour OpenJDK 17 sur Ubuntu
+        PATH = "${JAVA_HOME}/bin:${env.PATH}" // Ajoute Java au PATH
     }
 
     stages {
@@ -75,13 +80,11 @@ pipeline {
                         }
                     }
 
+                    // Seuls Eureka, API Gateway et Frontend sont compilés pour le déploiement simplifié
                     def serviceModules = [
                         'backend/eureka-service',
                         'backend/api-gateway-service',
-                        'backend/answer-service',
-                        'backend/exam-service',
-                        'backend/course-service',
-                        'backend/user-service'
+                        'backend/frontend' // Le frontend est aussi un module Maven s'il est basé sur Spring Boot
                     ]
                     def parallelJobs = [:]
                     for (module in serviceModules) {
@@ -107,6 +110,7 @@ pipeline {
         stage('Construction des Images Docker') {
             steps {
                 echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
+                // Assurez-vous que votre docker-compose.yml ne build que les services souhaités
                 sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
             }
         }
@@ -114,13 +118,10 @@ pipeline {
         stage('Scan de sécurité Trivy') {
             steps {
                 script {
+                    // La liste des images à scanner est réduite aux services déployés
                     def imagesToScan = [
                         "exam-eureka-service:latest",
                         "exam-api-gateway-service:latest",
-                        "exam-answer-service:latest",
-                        "exam-exam-service:latest",
-                        "exam-course-service:latest",
-                        "exam-user-service:latest",
                         "exam-frontend:latest"
                     ]
 
@@ -145,6 +146,13 @@ pipeline {
         stage('Publication sur Docker Hub') {
             steps {
                 script {
+                    // La liste des services à pousser est réduite aux services déployés
+                    def DOCKER_SERVICES_TO_PUSH = [
+                        'eureka-service',
+                        'api-gateway-service',
+                        'frontend'
+                    ]
+                    echo "Publication des images Docker sur Docker Hub..."
                     withCredentials([usernamePassword(
                         credentialsId: env.DOCKER_HUB_CRED_ID,
                         usernameVariable: 'DOCKER_USERNAME',
@@ -152,41 +160,37 @@ pipeline {
                     )]) {
                         sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
 
-                        sh '''
-                            for service_name in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
-                                original_image="exam-${service_name}"
-                                new_image="${DOCKER_HUB_USERNAME}/${original_image}"
-
-                                echo "Taggage et publication de l'image : ${original_image} vers ${new_image}:latest"
-                                docker tag "$original_image" "$new_image:latest"
-                                docker push "$new_image:latest" || {
-                                    echo "Échec du push pour $new_image:latest"
-                                    exit 1
-                                }
-                                echo "Image $new_image:latest publiée avec succès"
-                            done
-
-                            docker logout
-                        '''
+                        for (service_name in DOCKER_SERVICES_TO_PUSH) {
+                            def original_image = "exam-${service_name}"
+                            def new_image = "${env.DOCKER_HUB_USERNAME}/${original_image}"
+                            echo "  -> Publication de ${new_image}:latest"
+                            sh "docker tag \"$original_image\" \"$new_image:latest\"" // Re-taggage avant le push
+                            sh "docker push \"$new_image:latest\" || { echo \"Échec du push pour $new_image:latest\"; exit 1; }"
+                        }
+                        sh 'docker logout'
                     }
                 }
             }
         }
 
+        // Le stage 'Analyse SonarQube' est commenté comme demandé.
+        /*
         stage('Analyse SonarQube') {
             steps {
                 script {
+                    // La liste servicesToScan est définie à l'intérieur du bloc 'script'
+                    def servicesToScan = [
+                        'api-gateway-service',
+                        'answer-service',
+                        'course-service',
+                        'eureka-service',
+                        'exam-service',
+                        'user-service'
+                    ]
+                    echo "Lancement de l'analyse SonarQube pour les services backend et le frontend..."
                     withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
-                        def servicesToScan = [
-                            'api-gateway-service',
-                            'answer-service',
-                            'course-service',
-                            'eureka-service',
-                            'exam-service',
-                            'user-service'
-                        ]
                         for (serviceDir in servicesToScan) {
-                            echo "Lancement de l'analyse SonarQube pour ${serviceDir}..."
+                            echo "  -> Analyse SonarQube pour ${serviceDir}..."
                             dir("backend/${serviceDir}") {
                                 withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
                                     sh "mvn sonar:sonar -Dsonar.projectKey=exam-${serviceDir} -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
@@ -194,6 +198,7 @@ pipeline {
                             }
                         }
                         dir("frontend") {
+                            echo "  -> Analyse SonarQube pour le frontend..."
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
                                 sh "${tools.get(env.SONAR_SCANNER_NAME).getHome()}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
@@ -202,6 +207,7 @@ pipeline {
                 }
             }
         }
+        */
 
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
