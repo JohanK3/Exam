@@ -5,7 +5,7 @@ env:
       name: baseline
       urls:
         - http://frontend-service:80 # Utilisez le nom de service Kubernetes de votre frontend et son port
-        - http://api-gateway-service:80 # Utilisez le nom de service Kubernetes de votre API Gateway et son port
+        - http://api-gateway-service:8090 # <-- CORRECTION ICI : le port de l'API Gateway doit être 8090
   parameters:
     failOnError: true
     progressToStdout: false
