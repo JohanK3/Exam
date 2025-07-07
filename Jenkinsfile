@@ -199,7 +199,7 @@ pipeline {
             }
         }
 
-        ---
+        //---
         stage('Déploiement sur Kubernetes (Minikube)') {
             steps {
                 script {
@@ -271,7 +271,7 @@ pipeline {
             }
         }
 
-        ---
+        //---
         stage('Tests de charge JMeter (sur Kubernetes)') {
             steps {
                 script {
@@ -288,7 +288,7 @@ pipeline {
             }
         }
 
-        ---
+        //---
         stage('Scan de sécurité OWASP ZAP (sur Kubernetes)') {
             steps {
                 script {
