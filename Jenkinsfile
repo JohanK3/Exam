@@ -244,24 +244,6 @@ pipeline {
                         echo "Attente du déploiement d'Eureka..."
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
 
-                        // --- NOUVEAU: Stage pour le déploiement de Prometheus & Grafana ---
-                        stage('Déploiement du Monitoring (Prometheus & Grafana)') {
-                            steps {
-                                echo "Ajout du dépôt Helm pour Prometheus..."
-                                sh "helm repo add ${env.HELM_REPO_NAME} ${env.HELM_REPO_URL} || true" // Ajout de || true pour éviter l'échec si le repo est déjà ajouté
-                                sh "helm repo update"
-
-                                echo "Installation/Mise à jour de Prometheus et Grafana avec Helm..."
-                                // Utiliser 'upgrade --install' pour gérer les mises à jour et les premières installations
-                                sh "helm upgrade --install ${env.PROMETHEUS_RELEASE_NAME} ${env.HELM_REPO_NAME}/${env.PROMETHEUS_CHART_NAME} --namespace ${env.MONITORING_NAMESPACE} --create-namespace"
-
-                                echo "Attente que les pods Prometheus et Grafana soient Running..."
-                                sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
-                                sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
-                                echo "Prometheus et Grafana sont déployés et prêts."
-                            }
-                        }
-                        // --- FIN NOUVEAU ---
 
                         // --- Préparation et déploiement du Job ZAP ---
                         echo "Lecture du plan d'automatisation ZAP depuis le fichier..."
@@ -296,6 +278,27 @@ pipeline {
                 }
             }
         }
+
+        //--- NOUVEAU STAGE DEPLACÉ ICI (au même niveau que les autres stages principaux) ---
+        stage('Déploiement du Monitoring (Prometheus & Grafana)') {
+            steps {
+                script {
+                    echo "Ajout du dépôt Helm pour Prometheus..."
+                    sh "helm repo add ${env.HELM_REPO_NAME} ${env.HELM_REPO_URL} || true" // Ajout de || true pour éviter l'échec si le repo est déjà ajouté
+                    sh "helm repo update"
+
+                    echo "Installation/Mise à jour de Prometheus et Grafana avec Helm..."
+                    // Utiliser 'upgrade --install' pour gérer les mises à jour et les premières installations
+                    sh "helm upgrade --install ${env.PROMETHEUS_RELEASE_NAME} ${env.HELM_REPO_NAME}/${env.PROMETHEUS_CHART_NAME} --namespace ${env.MONITORING_NAMESPACE} --create-namespace"
+
+                    echo "Attente que les pods Prometheus et Grafana soient Running..."
+                    sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
+                    sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
+                    echo "Prometheus et Grafana sont déployés et prêts."
+                }
+            }
+        }
+        //--- FIN NOUVEAU STAGE DEPLACÉ ---
 
         //---
         stage('Tests de charge JMeter (sur Kubernetes)') {
@@ -362,7 +365,7 @@ pipeline {
             archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
         }
         success {
-            echo 'Pipeline réussi! Les services sont déployés sur Kubernetes.'
+            echo 'Pipeline réussi! Les services sont déployés sur Kubernetes, ainsi que le monitoring.'
         }
         failure {
             echo 'Pipeline échoué! Veuillez vérifier les logs pour les erreurs.'
