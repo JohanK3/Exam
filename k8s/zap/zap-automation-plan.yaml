@@ -1,17 +1,15 @@
-# k8s/zap/zap-automation-plan.yaml
+# k8s/zap/zap-automation-plan.yaml - RECOMMANDÉ (basé sur l'IP Minikube)
 env:
   contexts:
     - excludePaths: []
       name: baseline
       urls:
-        - http://frontend-service:80 # Utilisez le nom de service Kubernetes de votre frontend et son port
-        - http://api-gateway-service:8090 # <-- CORRECTION ICI : le port de l'API Gateway doit être 8090
+        - http://192.168.49.2/ # Pour le frontend via Ingress
+        - http://192.168.49.2/api/ # Pour l'API Gateway via Ingress
   parameters:
     failOnError: true
     progressToStdout: false
   proxy:
-  # Le proxy n'est pas nécessaire ici car ZAP s'exécute directement le scan
-  # dans le pod, il n'y a pas d'interception externe.
 jobs:
   - parameters:
       enableTags: false
@@ -19,7 +17,8 @@ jobs:
     type: passiveScan-config
   - parameters:
       maxDuration: 1
-      url: http://frontend-service:80 # URL de départ pour le spider (nom de service interne)
+      # Ciblez l'Ingress pour le spider aussi
+      url: http://192.168.49.2/ # Ou http://192.168.49.2/api/ si vous voulez cibler spécifiquement l'API
     type: spider
   - parameters:
       maxDuration: 0
@@ -32,7 +31,7 @@ jobs:
   - parameters:
       reportDescription: ''
       reportDir: /zap/wrk/
-      reportFile: zap_report.json # Le nom du fichier de rapport final
+      reportFile: zap_report.json
       reportTitle: ZAP Scanning Report
       template: traditional-json
     type: report
