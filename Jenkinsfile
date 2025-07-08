@@ -22,6 +22,14 @@ pipeline {
 
         // Variables pour ZAP
         JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
+
+        // --- NOUVEAU: Variables pour Helm (Prometheus/Grafana) ---
+        HELM_REPO_NAME = 'prometheus-community'
+        HELM_REPO_URL = 'https://prometheus-community.github.io/helm-charts'
+        PROMETHEUS_CHART_NAME = 'kube-prometheus-stack'
+        PROMETHEUS_RELEASE_NAME = 'prometheus' // Nom de l'installation Helm
+        MONITORING_NAMESPACE = 'monitoring'    // Namespace dédié au monitoring
+        // --- FIN NOUVEAU ---
     }
 
     stages {
@@ -236,6 +244,24 @@ pipeline {
                         echo "Attente du déploiement d'Eureka..."
                         sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
 
+                        // --- NOUVEAU: Stage pour le déploiement de Prometheus & Grafana ---
+                        stage('Déploiement du Monitoring (Prometheus & Grafana)') {
+                            steps {
+                                echo "Ajout du dépôt Helm pour Prometheus..."
+                                sh "helm repo add ${env.HELM_REPO_NAME} ${env.HELM_REPO_URL} || true" // Ajout de || true pour éviter l'échec si le repo est déjà ajouté
+                                sh "helm repo update"
+
+                                echo "Installation/Mise à jour de Prometheus et Grafana avec Helm..."
+                                // Utiliser 'upgrade --install' pour gérer les mises à jour et les premières installations
+                                sh "helm upgrade --install ${env.PROMETHEUS_RELEASE_NAME} ${env.HELM_REPO_NAME}/${env.PROMETHEUS_CHART_NAME} --namespace ${env.MONITORING_NAMESPACE} --create-namespace"
+
+                                echo "Attente que les pods Prometheus et Grafana soient Running..."
+                                sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
+                                sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
+                                echo "Prometheus et Grafana sont déployés et prêts."
+                            }
+                        }
+                        // --- FIN NOUVEAU ---
 
                         // --- Préparation et déploiement du Job ZAP ---
                         echo "Lecture du plan d'automatisation ZAP depuis le fichier..."
@@ -323,6 +349,8 @@ pipeline {
                 sh 'kubectl get services || true'
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
+                sh 'kubectl get service -n monitoring || true' // Ajout pour vérifier les services de monitoring
+                sh 'kubectl get pods -n monitoring || true'     // Ajout pour vérifier les pods de monitoring
             }
             withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
                 sh 'minikube service list || true'
