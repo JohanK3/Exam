@@ -22,35 +22,28 @@ spec:
         ports:
         - containerPort: 8090
         env:
-        # Laissez JAVA_OPTS pour le contrôle fin de la JVM si vous le souhaitez,
-        # mais alignez les ressources Kubernetes en conséquence.
-        # Alternativement, vous pouvez laisser Kubernetes gérer la mémoire en retirant JAVA_OPTS
-        # et en augmentant significativement les limites de mémoire K8s.
         - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
           value: "http://eureka-service:8761/eureka"
         - name: JAVA_OPTS
-          value: "-Xmx768m -Xms512m" # Augmentez légèrement la mémoire JVM
+          value: "-Xmx1024m -Xms512m" # Augmentation de la mémoire JVM
         resources:
           requests:
-            memory: "768Mi" # Minimum 768 MB de mémoire garantie pour le scheduling
-            cpu: "500m"   # Minimum 0.5 CPU core garanti
+            memory: "1024Mi" # Demande d'au moins 1 GB de mémoire
+            cpu: "750m"     # Demande d'au moins 0.75 CPU core
           limits:
-            memory: "1024Mi" # Limite le conteneur à 1 GB de mémoire.
-                             # Cela devrait être > Xmx de JAVA_OPTS.
-            cpu: "1000m"  # Limite à 1 CPU core.
+            memory: "1536Mi" # Limite à 1.5 GB de mémoire
+            cpu: "1500m"     # Limite à 1.5 CPU core
         livenessProbe:
-          httpGet:
-            path: /actuator/health
+          tcpSocket:       # Changé en tcpSocket
             port: 8090
-          initialDelaySeconds: 60
+          initialDelaySeconds: 120 # Délai initial augmenté à 2 minutes
           periodSeconds: 10
-          timeoutSeconds: 5 # Ajoutez un timeout pour éviter des boucles infinies
-          failureThreshold: 3 # Ajoutez un seuil avant le redémarrage
-        readinessProbe: # Ajoutez une readinessProbe pour une meilleure gestion du trafic
-          httpGet:
-            path: /actuator/health
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:    # Ajouté et changé en tcpSocket
+          tcpSocket:
             port: 8090
-          initialDelaySeconds: 20 # Peut être plus court que liveness
+          initialDelaySeconds: 90 # Délai initial augmenté à 1.5 minutes
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
