@@ -1,37 +1,38 @@
-# k8s/zap/zap-automation-plan.yaml - RECOMMANDÉ (basé sur l'IP Minikube)
 env:
   contexts:
     - excludePaths: []
       name: baseline
       urls:
-        - http://192.168.49.2/ # Pour le frontend via Ingress
-        - http://192.168.49.2/api/ # Pour l'API Gateway via Ingress
+        # Cible le service Frontend interne via son nom de service et son port Kubernetes
+        - http://frontend:80/
+        # Cible le service API Gateway interne via son nom de service et son port Kubernetes
+        - http://api-gateway-service:8090/
   parameters:
-    failOnError: true
-    progressToStdout: false
+    failOnError: true # Le Job Kubernetes échouera si ZAP trouve des alertes ou des erreurs critiques
+    progressToStdout: false # Affiche la progression directement dans les logs du conteneur ZAP
   proxy:
 jobs:
   - parameters:
       enableTags: false
       maxAlertsPerRule: 10
-    type: passiveScan-config
+    type: passiveScan-config # Configuration du scan passif
   - parameters:
-      maxDuration: 1
-      # Ciblez l'Ingress pour le spider aussi
-      url: http://192.168.49.2/ # Ou http://192.168.49.2/api/ si vous voulez cibler spécifiquement l'API
-    type: spider
+      maxDuration: 5 # Durée du spider augmentée à 5 minutes pour une meilleure exploration
+      # Cible le frontend pour le spider, car c'est le point d'entrée visible
+      url: http://frontend:80/
+    type: spider # Lance le spider pour découvrir les URL de l'application
   - parameters:
-      maxDuration: 0
-    type: passiveScan-wait
+      maxDuration: 0 # Le scan passif attendra que tout le trafic observé soit analysé
+    type: passiveScan-wait # Attend la fin du scan passif
   - parameters:
       format: Long
       summaryFile: /zap/wrk/zap_out.json
     rules: []
-    type: outputSummary
+    type: outputSummary # Génère un résumé du scan
   - parameters:
-      reportDescription: ''
+      reportDescription: 'Rapport de Scan de Sécurité ZAP'
       reportDir: /zap/wrk/
       reportFile: zap_report.json
-      reportTitle: ZAP Scanning Report
+      reportTitle: 'Rapport de Scan de Sécurité ZAP'
       template: traditional-json
-    type: report
+    type: report # Génère le rapport final au format JSON

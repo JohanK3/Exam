@@ -1,8 +1,7 @@
-# k8s/zap/zap-automation-job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: owasp-zap-automation-{{ .Release.Name }}
+  name: owasp-zap-automation-job # Nom du Job Kubernetes
 spec:
   template:
     metadata:
@@ -10,20 +9,19 @@ spec:
         app: owasp-zap-automation
     spec:
       containers:
-      - name: zap-automation
-        # La balise de l'image a été changée de ':stable' à ':latest'
-        image: zaproxy/zap-stable:latest # Utilisez "latest" comme balise
-        command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
-        volumeMounts:
-        - name: zap-plan-volume
-          mountPath: /zap/zap-automation-plan.yaml
-          subPath: zap-automation-plan.yaml
-        - name: zap-work-volume
-          mountPath: /zap/wrk
-      restartPolicy: Never
+        - name: zap-automation
+          image: zaproxy/zap-stable:latest # Image ZAP stable
+          command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
+          volumeMounts:
+            - name: zap-plan-volume
+              mountPath: /zap/zap-automation-plan.yaml
+              subPath: zap-automation-plan.yaml
+            - name: zap-work-volume
+              mountPath: /zap/wrk
+      restartPolicy: Never # Très important pour un Job : il ne redémarre pas en cas d'erreur
       volumes:
-      - name: zap-plan-volume
-        configMap:
-          name: zap-automation-plan-config
-      - name: zap-work-volume
-        emptyDir: {}
+        - name: zap-plan-volume
+          configMap:
+            name: zap-automation-plan-config # Référence au ConfigMap qui contient le plan ZAP
+        - name: zap-work-volume
+          emptyDir: {} # Volume temporaire pour les rapports de ZAP
