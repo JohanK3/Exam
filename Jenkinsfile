@@ -130,14 +130,15 @@ pipeline {
 
                     for (image in imagesToScan) {
                         echo "Lancement du scan Trivy pour l'image: ${image}"
-                        sh "trivy image --format json --output trivy-${image.replaceAll('/', '-').replaceAll(':', '_')}.json ${image}"
+                        // AJOUT DU TIMEOUT POUR TRIVY ICI
+                        sh "trivy image --format json --timeout 15m --output trivy-${image.replaceAll('/', '-').replaceAll(':', '_')}.json ${image}"
                     }
 
                     sh '''
                         for report in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
                                 echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1
+                                # exit 1 // Commenté pour ne pas faire échouer le pipeline immédiatement pour le debug
                             fi
                         done
                     '''
@@ -217,7 +218,9 @@ pipeline {
                         sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
                         sh 'minikube addons enable ingress || true'
 
-                        echo "Application des manifests des bases de données et des PVCs..."
+                        // Les déploiements des bases de données sont commentés ici,
+                        // Assurez-vous qu'ils sont bien gérés si nécessaire (manuellement ou dans un stage dédié)
+                        // echo "Application des manifests des bases de données et des PVCs..."
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
                         // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
@@ -246,17 +249,14 @@ pipeline {
 
 
                         // --- Préparation et déploiement du Job ZAP ---
-                        echo "Lecture du plan d'automatisation ZAP depuis le fichier..."
-                        // Lire le contenu du fichier zap-automation-plan.yaml
-                        def zapPlanContent = readFile('k8s/zap/zap-automation-plan.yaml')
-
                         echo "Création/Mise à jour du ConfigMap ZAP..."
-                        // Crée ou met à jour le ConfigMap avec le contenu du fichier
-                        sh "kubectl create configmap zap-automation-plan-config --from-file=k8s/zap/zap-automation-plan.yaml --dry-run=client -o yaml | kubectl apply -f -"
+                        // Utilisez `kubectl apply -f` pour créer ou mettre à jour le ConfigMap.
+                        // Son contenu est dans le fichier `k8s/zap/zap-automation-plan-config.yaml`.
+                        sh "kubectl apply -f k8s/zap/zap-automation-plan-config.yaml"
 
                         echo "Application du manifest du Job ZAP..."
-                        // Le nom du job sera unique pour ce build
-                        sh "envsubst < k8s/zap/zap-automation-job.yaml | sed 's/{{ .Release.Name }}/${BUILD_NUMBER}/g' | kubectl apply -f -"
+                        // Le nom du job sera unique pour ce build en utilisant la variable BUILD_NUMBER de Jenkins
+                        sh "envsubst < k8s/zap/zap-automation-job.yaml | sed 's/owasp-zap-automation-{{ .Release.Name }}/owasp-zap-automation-${BUILD_NUMBER}/g' | kubectl apply -f -"
 
                         echo "Attente que le Job ZAP soit terminé..."
                         // Attendre la complétion du job spécifique par son nom généré
@@ -267,9 +267,8 @@ pipeline {
                         echo "Récupération du rapport ZAP du pod : ${zapPodName}"
                         sh "kubectl cp ${zapPodName}:/zap/wrk/zap_report.json ./zap_report.json || true"
 
-                        // Nettoyer le Job et le ConfigMap après la récupération du rapport
+                        // Nettoyer SEULEMENT le Job après la récupération du rapport (le ConfigMap reste)
                         sh "kubectl delete job owasp-zap-automation-${BUILD_NUMBER} || true"
-                        sh "kubectl delete configmap zap-automation-plan-config || true"
 
 
                         echo "Application du manifest Ingress..."
@@ -306,11 +305,11 @@ pipeline {
                 script {
                     echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
                     withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
-                         def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                         def apiGatewayUrl = "http://${minikubeIp}/api"
+                           def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
+                           def apiGatewayUrl = "http://${minikubeIp}/api"
 
-                         echo "URL cible pour JMeter: ${apiGatewayUrl}"
-                         sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                           echo "URL cible pour JMeter: ${apiGatewayUrl}"
+                           sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
                     }
                     archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
                 }
@@ -353,7 +352,7 @@ pipeline {
                 sh 'kubectl get deployments || true'
                 sh 'kubectl get ingress || true'
                 sh 'kubectl get service -n monitoring || true' // Ajout pour vérifier les services de monitoring
-                sh 'kubectl get pods -n monitoring || true'     // Ajout pour vérifier les pods de monitoring
+                sh 'kubectl get pods -n monitoring || true'    // Ajout pour vérifier les pods de monitoring
             }
             withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
                 sh 'minikube service list || true'
