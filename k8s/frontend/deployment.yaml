@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: johankarl/exam-frontend
+        image: johankarl/exam-frontend:latest # Image from Docker Hub with ':latest' tag
         ports:
         - containerPort: 80
         resources:
