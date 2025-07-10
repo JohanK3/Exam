@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
       - name: eureka
-        image: johankarl/exam-eureka-service
+        image: johankarl/exam-eureka-service:latest # Image from Docker Hub with ':latest' tag
         ports:
         - containerPort: 8761
         env:
