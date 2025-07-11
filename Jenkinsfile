@@ -26,6 +26,9 @@ pipeline {
         PROMETHEUS_CHART_NAME = 'kube-prometheus-stack'
         PROMETHEUS_RELEASE_NAME = 'prometheus'
         MONITORING_NAMESPACE = 'monitoring'
+
+        // Chemin du fichier de configuration Kubernetes
+        KUBECONFIG = '/home/karl/.kube/config'
     }
 
     stages {
