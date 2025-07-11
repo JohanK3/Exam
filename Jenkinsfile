@@ -2,50 +2,44 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven3' // Vérifiez le nom exact de votre installation Maven
-        jdk 'Java17'    // Vérifiez le nom exact de votre installation JDK
+        maven 'Maven3'
+        jdk 'Java17'
     }
 
     environment {
-        // Variables d'environnement pour Docker Hub
-        DOCKER_HUB_USERNAME = 'johankarl' // Votre nom d'utilisateur Docker Hub
-        DOCKER_HUB_CRED_ID = 'dockerhub' // ID de vos identifiants Docker Hub configurés dans Jenkins
-
-        // Fichier Docker Compose
+        // Docker Hub
+        DOCKER_HUB_USERNAME = 'johankarl'
+        DOCKER_HUB_CRED_ID = 'dockerhub'
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
 
-        // Variables pour SonarQube (à vérifier avec votre configuration Jenkins)
-        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI' // Nom de votre SonarQube Scanner Tool
-        // L'URL de SonarQube sera l'IP de la VM Jenkins elle-même, car SonarQube est installé directement dessus
-        SONAR_HOST_URL = 'http://localhost:9000' // Ou l'IP de la VM si Jenkins ne tourne pas sur localhost
-        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins' // ID de votre Secret Token SonarQube dans Jenkins
+        // SonarQube
+        SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
 
-        // Variables pour ZAP
-        JMETER_HOME = '/opt/jmeter' // Chemin vers JMeter (si non géré par Jenkins Tools)
+        // JMeter
+        JMETER_HOME = '/opt/jmeter'
 
-        // --- NOUVEAU: Variables pour Helm (Prometheus/Grafana) ---
+        // Helm Prometheus/Grafana
         HELM_REPO_NAME = 'prometheus-community'
         HELM_REPO_URL = 'https://prometheus-community.github.io/helm-charts'
         PROMETHEUS_CHART_NAME = 'kube-prometheus-stack'
-        PROMETHEUS_RELEASE_NAME = 'prometheus' // Nom de l'installation Helm
-        MONITORING_NAMESPACE = 'monitoring'    // Namespace dédié au monitoring
-        // --- FIN NOUVEAU ---
+        PROMETHEUS_RELEASE_NAME = 'prometheus'
+        MONITORING_NAMESPACE = 'monitoring'
     }
 
     stages {
-        stage('Nettoyage de l’espace de travail') {
-            steps {
-                cleanWs()
-            }
+        stage('Nettoyage') {
+            steps { cleanWs() }
         }
 
-        stage('Récupération du code source') {
+        stage('Checkout') {
             steps {
                 git branch: 'sprint-3', credentialsId: 'github', url: 'https://github.com/JohanK3/Exam.git'
             }
         }
 
-        stage('Linting des Dockerfiles') {
+        stage('Linting Dockerfiles') {
             steps {
                 script {
                     def dockerfiles = [
@@ -57,29 +51,21 @@ pipeline {
                         'backend/user-service/Dockerfile',
                         'frontend/Dockerfile'
                     ]
-                    for (dockerfile in dockerfiles) {
-                        echo "Lancement du linting pour ${dockerfile}"
-                        sh "docker run --rm -i hadolint/hadolint < ${dockerfile} || true"
+                    for (df in dockerfiles) {
+                        echo "Linting ${df}"
+                        sh "docker run --rm -i hadolint/hadolint < ${df} || true"
                     }
                 }
             }
         }
 
-        stage('Compilation Maven') {
+        stage('Build Maven') {
             steps {
                 script {
-                    def commonModules = [
-                        'backend/common-exam',
-                        'backend/common-service',
-                        'backend/common-student'
-                    ]
-                    for (module in commonModules) {
-                        dir(module) {
-                            sh 'mvn clean install -DskipTests'
-                        }
-                    }
+                    def commons = ['backend/common-exam', 'backend/common-service', 'backend/common-student']
+                    commons.each { dir(it) { sh 'mvn clean install -DskipTests' } }
 
-                    def serviceModules = [
+                    def services = [
                         'backend/eureka-service',
                         'backend/api-gateway-service',
                         'backend/answer-service',
@@ -87,92 +73,54 @@ pipeline {
                         'backend/course-service',
                         'backend/user-service'
                     ]
-                    def parallelJobs = [:]
-                    for (module in serviceModules) {
-                        def moduleName = module
-                        parallelJobs[moduleName] = {
-                            dir(moduleName) {
-                                sh 'mvn clean install -DskipTests'
-                            }
-                        }
-                    }
-                    parallel parallelJobs
+                    def jobs = [:]
+                    services.each { svc -> jobs[svc] = { dir(svc) { sh 'mvn clean install -DskipTests' } } }
+                    parallel jobs
                 }
             }
         }
 
-        stage('Configure Minikube Docker') {
-            steps {
-                echo "Configuration de l'environnement Docker pour Minikube..."
-                sh 'eval $(minikube docker-env)'
-            }
+        stage('Build Docker Images') {
+            steps { sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build' }
         }
 
-        stage('Construction des Images Docker') {
-            steps {
-                echo "Construction des images Docker via docker-compose (dans l'environnement Minikube)..."
-                sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build'
-            }
-        }
-
-        stage('Scan de sécurité Trivy') {
+        stage('Trivy Scan') {
             steps {
                 script {
-                    def imagesToScan = [
-                        "exam-eureka-service:latest",
-                        "exam-api-gateway-service:latest",
-                        "exam-answer-service:latest",
-                        "exam-exam-service:latest",
-                        "exam-course-service:latest",
-                        "exam-user-service:latest",
-                        "exam-frontend:latest"
+                    def images = [
+                        "exam-eureka-service",
+                        "exam-api-gateway-service",
+                        "exam-answer-service",
+                        "exam-exam-service",
+                        "exam-course-service",
+                        "exam-user-service",
+                        "exam-frontend"
                     ]
-
-                    for (image in imagesToScan) {
-                        echo "Lancement du scan Trivy pour l'image: ${image}"
-                        // AJOUT DU TIMEOUT POUR TRIVY ICI
-                        sh "trivy image --format json --timeout 15m --output trivy-${image.replaceAll('/', '-').replaceAll(':', '_')}.json ${image}"
+                    images.each {
+                        sh "trivy image --format json --timeout 15m --output trivy-${it}.json ${it}"
                     }
-
                     sh '''
-                        for report in trivy-*.json; do
-                            if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$report" | grep -q .; then
-                                echo "ERREUR: Vulnérabilités critiques détectées dans $report. Échec du pipeline."
-                                # exit 1 // Commenté pour ne pas faire échouer le pipeline immédiatement pour le debug
-                            fi
+                        for f in trivy-*.json; do
+                            jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q . && exit 1 || true
                         done
                     '''
-                    archiveArtifacts artifacts: 'trivy-*.json', allowEmptyArchive: false
+                    archiveArtifacts artifacts: 'trivy-*.json'
                 }
             }
         }
 
-        stage('Publication sur Docker Hub') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    withCredentials([usernamePassword(
-                        credentialsId: env.DOCKER_HUB_CRED_ID,
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )]) {
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
-
-                        sh '''
-                            for service_name in eureka-service api-gateway-service answer-service exam-service course-service user-service frontend; do
-                                original_image="exam-${service_name}"
-                                new_image="${DOCKER_HUB_USERNAME}/${original_image}"
-
-                                echo "Taggage et publication de l'image : ${original_image} vers ${new_image}:latest"
-                                docker tag "$original_image" "$new_image:latest"
-                                docker push "$new_image:latest" || {
-                                    echo "Échec du push pour $new_image:latest"
-                                    exit 1
-                                }
-                                echo "Image $new_image:latest publiée avec succès"
-                            done
-
-                            docker logout
-                        '''
+                        def services = ['eureka-service', 'api-gateway-service', 'answer-service', 'exam-service', 'course-service', 'user-service', 'frontend']
+                        services.each {
+                            def local = "exam-${it}"
+                            def remote = "${DOCKER_HUB_USERNAME}/${local}"
+                            sh "docker tag ${local} ${remote}:latest && docker push ${remote}:latest"
+                        }
+                        sh "docker logout"
                     }
                 }
             }
@@ -182,25 +130,17 @@ pipeline {
             steps {
                 script {
                     withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
-                        def servicesToScan = [
-                            'api-gateway-service',
-                            'answer-service',
-                            'course-service',
-                            'eureka-service',
-                            'exam-service',
-                            'user-service'
-                        ]
-                        for (serviceDir in servicesToScan) {
-                            echo "Lancement de l'analyse SonarQube pour ${serviceDir}..."
-                            dir("backend/${serviceDir}") {
+                        def services = ['api-gateway-service', 'answer-service', 'course-service', 'eureka-service', 'exam-service', 'user-service']
+                        services.each {
+                            dir("backend/${it}") {
                                 withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${serviceDir} -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
                                 }
                             }
                         }
                         dir("frontend") {
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${env.SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
                             }
                         }
                     }
@@ -208,166 +148,80 @@ pipeline {
             }
         }
 
-        //---
-        stage('Déploiement sur Kubernetes (Minikube)') {
+        stage('Déploiement Kubernetes') {
             steps {
                 script {
-                    echo "Déploiement sur Kubernetes..."
+                    sh '''
+                        echo "[1] Déploiement Eureka"
+                        kubectl apply -f k8s/eureka/
 
-                    withEnv(["KUBECONFIG=${env.HOME}/.kube/config", "MINIKUBE_HOME=${env.HOME}"]) {
-                        sh 'minikube status || minikube start --driver=docker --cpus 4 --memory 8192mb'
-                        sh 'minikube addons enable ingress || true'
+                        echo "[2] Déploiement API Gateway"
+                        kubectl apply -f k8s/api-gateway/
 
-                        // Les déploiements des bases de données sont commentés ici,
-                        // Assurez-vous qu'ils sont bien gérés si nécessaire (manuellement ou dans un stage dédié)
-                        // echo "Application des manifests des bases de données et des PVCs..."
-                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml'
-                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml'
-                        // sh 'kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml'
+                        echo "[3] Déploiement Frontend"
+                        kubectl apply -f k8s/frontend/
 
-                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml'
-                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml'
-                        // sh 'kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml'
+                        echo "[4] Déploiement ZAP ConfigMap"
+                        kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml'
-                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml'
-                        // sh 'kubectl apply -f k8s/user-service/postgres-user-db-service.yaml'
+                        echo "[5] Déploiement ZAP Job"
+                        export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
+                        envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
-                        // echo "Attente des déploiements des bases de données..."
-                        // sh 'kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true'
-                        // sh 'kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true'
-                        // sh 'kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true'
+                        echo "[6] Attente ZAP Job"
+                        kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
+                        echo "[7] Récupération rapport ZAP"
+                        POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+                        kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
-                        echo "Application des manifests des services d'infrastructure et principaux..."
-                        sh 'kubectl apply -f k8s/eureka/'
-                        sh 'kubectl apply -f k8s/api-gateway/'
-                        sh 'kubectl apply -f k8s/frontend/'
+                        echo "[8] Suppression ZAP Job"
+                        kubectl delete job ${ZAP_JOB_NAME} || true
 
-                        echo "Attente du déploiement d'Eureka..."
-                        sh 'kubectl wait --for=condition=Available deployment/eureka-service --timeout=300s || true'
-
-
-                        // --- Préparation et déploiement du Job ZAP ---
-                        echo "Création/Mise à jour du ConfigMap ZAP..."
-                        // Utilisez `kubectl apply -f` pour créer ou mettre à jour le ConfigMap.
-                        // Son contenu est dans le fichier `k8s/zap/zap-automation-plan-config.yaml`.
-                        sh "kubectl apply -f k8s/zap/zap-automation-plan-config.yaml"
-
-                        echo "Application du manifest du Job ZAP..."
-                        // Le nom du job sera unique pour ce build en utilisant la variable BUILD_NUMBER de Jenkins
-                        sh "envsubst < k8s/zap/zap-automation-job.yaml | sed 's/owasp-zap-automation-{{ .Release.Name }}/owasp-zap-automation-${BUILD_NUMBER}/g' | kubectl apply -f -"
-
-                        echo "Attente que le Job ZAP soit terminé..."
-                        // Attendre la complétion du job spécifique par son nom généré
-                        sh "kubectl wait --for=condition=complete job/owasp-zap-automation-${BUILD_NUMBER} --timeout=900s || true"
-
-                        // Récupérer le nom du pod créé par le job
-                        def zapPodName = sh(returnStdout: true, script: "kubectl get pods --selector=job-name=owasp-zap-automation-${BUILD_NUMBER} -o jsonpath='{.items[0].metadata.name}'").trim()
-                        echo "Récupération du rapport ZAP du pod : ${zapPodName}"
-                        sh "kubectl cp ${zapPodName}:/zap/wrk/zap_report.json ./zap_report.json || true"
-
-                        // Nettoyer SEULEMENT le Job après la récupération du rapport (le ConfigMap reste)
-                        sh "kubectl delete job owasp-zap-automation-${BUILD_NUMBER} || true"
-
-
-                        echo "Application du manifest Ingress..."
-                        sh 'kubectl apply -f k8s/ingress.yaml'
-                    }
+                        echo "[9] Déploiement Ingress"
+                        kubectl apply -f k8s/ingress.yaml
+                    '''
                 }
             }
         }
 
-        //--- NOUVEAU STAGE DEPLACÉ ICI (au même niveau que les autres stages principaux) ---
-        stage('Déploiement du Monitoring (Prometheus & Grafana)') {
+        stage('Déploiement Monitoring') {
             steps {
-                script {
-                    echo "Ajout du dépôt Helm pour Prometheus..."
-                    sh "helm repo add ${env.HELM_REPO_NAME} ${env.HELM_REPO_URL} || true" // Ajout de || true pour éviter l'échec si le repo est déjà ajouté
-                    sh "helm repo update"
-
-                    echo "Installation/Mise à jour de Prometheus et Grafana avec Helm..."
-                    // Utiliser 'upgrade --install' pour gérer les mises à jour et les premières installations
-                    sh "helm upgrade --install ${env.PROMETHEUS_RELEASE_NAME} ${env.HELM_REPO_NAME}/${env.PROMETHEUS_CHART_NAME} --namespace ${env.MONITORING_NAMESPACE} --create-namespace"
-
-                    echo "Attente que les pods Prometheus et Grafana soient Running..."
-                    sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
-                    sh "kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus -n ${env.MONITORING_NAMESPACE} --timeout=300s || true"
-                    echo "Prometheus et Grafana sont déployés et prêts."
-                }
+                sh '''
+                    helm repo add ${HELM_REPO_NAME} ${HELM_REPO_URL} || true
+                    helm repo update
+                    helm upgrade --install ${PROMETHEUS_RELEASE_NAME} ${HELM_REPO_NAME}/${PROMETHEUS_CHART_NAME} --namespace ${MONITORING_NAMESPACE} --create-namespace
+                    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=grafana -n ${MONITORING_NAMESPACE} --timeout=300s || true
+                    kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=prometheus -n ${MONITORING_NAMESPACE} --timeout=300s || true
+                '''
             }
         }
-        //--- FIN NOUVEAU STAGE DEPLACÉ ---
 
-        //---
-        stage('Tests de charge JMeter (sur Kubernetes)') {
+        stage('Tests de Charge JMeter') {
             steps {
                 script {
-                    echo "Exécution des tests de charge JMeter sur les services déployés sur Kubernetes..."
-                    withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
-                           def minikubeIp = sh(returnStdout: true, script: 'minikube ip').trim()
-                           def apiGatewayUrl = "http://${minikubeIp}/api"
-
-                           echo "URL cible pour JMeter: ${apiGatewayUrl}"
-                           sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
-                    }
-                    archiveArtifacts artifacts: 'report/**,results.jtl', allowEmptyArchive: true
+                    def apiGatewayUrl = "http://localhost/api"
+                    sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
+                    archiveArtifacts artifacts: 'report/**,results.jtl'
                 }
             }
         }
 
-        //---
-        stage('Scan de sécurité OWASP ZAP (sur Kubernetes)') {
+        stage('Analyse ZAP') {
             steps {
-                script {
-                    echo "Analyse du rapport ZAP..."
-                    def zapReportFile = 'zap_report.json' // Le rapport est maintenant copié dans le workspace Jenkins
-
-                    sh """
-                        if [ ! -f ${zapReportFile} ]; then
-                            echo "AVERTISSEMENT: Le rapport ZAP (${zapReportFile}) n'a pas été trouvé. Le scan a pu échouer ou la copie a échoué. Le pipeline continue mais veuillez vérifier."
-                            exit 0 # Permet au pipeline de continuer malgré l'absence de rapport
-                        fi
-
-                        if jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' "${zapReportFile}" | grep -q .; then
-                            echo "ERREUR: Vulnérabilités critiques ou élevées détectées dans ${zapReportFile}. Échec du pipeline."
-                            exit 1
-                        else
-                            echo "Aucune vulnérabilité critique ou élevée détectée par ZAP."
-                        fi
-                    """
-                    archiveArtifacts artifacts: "${zapReportFile}", allowEmptyArchive: false
-                }
+                sh '''
+                    if [ ! -f zap_report.json ]; then echo "Pas de rapport ZAP"; exit 0; fi
+                    jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' zap_report.json | grep -q . && exit 1 || echo "Pas de vulnérabilités critiques"
+                '''
+                archiveArtifacts artifacts: 'zap_report.json'
             }
         }
     }
 
     post {
         always {
-            echo "Pipeline terminé."
-            echo "Vérification finale des ressources Kubernetes:"
-            withEnv(["KUBECONFIG=${env.HOME}/.kube/config"]) {
-                sh 'kubectl get pods -o wide || true'
-                sh 'kubectl get services || true'
-                sh 'kubectl get deployments || true'
-                sh 'kubectl get ingress || true'
-                sh 'kubectl get service -n monitoring || true' // Ajout pour vérifier les services de monitoring
-                sh 'kubectl get pods -n monitoring || true'    // Ajout pour vérifier les pods de monitoring
-            }
-            withEnv(["MINIKUBE_HOME=${env.HOME}"]) {
-                sh 'minikube service list || true'
-                sh 'minikube ip || true'
-            }
-            echo "Arrêt des services Docker Compose (s'ils ont été démarrés pour d'autres tests, ou pour cleanup)"
-            sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} down --rmi local || true'
-            sh 'docker-compose logs > docker-compose.log || true'
-            archiveArtifacts artifacts: 'docker-compose.log', allowEmptyArchive: true
-        }
-        success {
-            echo 'Pipeline réussi! Les services sont déployés sur Kubernetes, ainsi que le monitoring.'
-        }
-        failure {
-            echo 'Pipeline échoué! Veuillez vérifier les logs pour les erreurs.'
+            echo "Fin du pipeline"
+            sh 'kubectl get all -A || true'
         }
     }
 }
