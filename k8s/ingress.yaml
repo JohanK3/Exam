@@ -1,4 +1,3 @@
-# k8s/ingress.yaml - RECOMMANDÉ
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -9,21 +8,20 @@ metadata:
     # nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   rules:
-    - http:
+    - host: exam.local # <-- AJOUTEZ CETTE LIGNE
+      http:
         paths:
-          # Pour l'API Gateway : toutes les requêtes commençant par /api
-          - path: /api # Laissez ceci comme préfixe pour l'API Gateway
+          - path: /api
             pathType: Prefix
             backend:
               service:
-                name: api-gateway-service # Nom du service de votre API Gateway
+                name: api-gateway-service
                 port:
-                  number: 8090 # <-- CORRECTION : Passez à 8090 (si c'est bien le port du service API Gateway)
-          # Pour le Frontend : toutes les autres requêtes (la racine /)
+                  number: 8090
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: frontend # Nom du service de votre Frontend
+                name: frontend
                 port:
-                  number: 80 # Port de votre service Frontend
+                  number: 80
