@@ -103,8 +103,6 @@ pipeline {
                         sh "trivy image --format json --timeout 15m --output trivy-${it}.json ${it}"
                     }
                     sh '''
-                        # Ce bloc permet d'annuler le pipeline si vulnérabilités critiques (prod)
-                        # Pour l'environnement de développement, ce bloc est neutralisé avec 'true'
                         for f in trivy-*.json; do
                             jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q . && echo "Vulnérabilités critiques trouvées mais pipeline continue (dev)" || true
                         done
@@ -205,9 +203,17 @@ pipeline {
         stage('Tests de Charge JMeter') {
             steps {
                 script {
-                    def apiGatewayUrl = "http://localhost/api"
-                    sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -Jtarget.url=${apiGatewayUrl} -l results.jtl -e -o report"
-                    archiveArtifacts artifacts: 'report/**,results.jtl'
+                    def targetHost = "exam.local"
+                    
+                    sh """
+                        echo "[1] Test de charge FRONTEND"
+                        ${JMETER_HOME}/bin/jmeter -n -t frontend.jmx -Jhost=${targetHost} -l frontend-results.jtl -e -o frontend-report
+
+                        echo "[2] Test de charge EXAM"
+                        ${JMETER_HOME}/bin/jmeter -n -t exam.jmx -Jhost=${targetHost} -l exam-results.jtl -e -o exam-report
+                    """
+
+                    archiveArtifacts artifacts: 'frontend-report/**, frontend-results.jtl, exam-report/**, exam-results.jtl'
                 }
             }
         }
