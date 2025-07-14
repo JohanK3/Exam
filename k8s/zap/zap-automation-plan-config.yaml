@@ -10,11 +10,11 @@ data:
         - excludePaths: []
           name: baseline
           urls:
-            - http://frontend:80/
+            - http://frontend-service:80/
             - http://api-gateway-service:8090/
       parameters:
-        failOnError: false # Désactivé pour débogage
-        progressToStdout: true # Activer les logs détaillés
+        failOnError: false
+        progressToStdout: true
       proxy:
     jobs:
       - parameters:
@@ -23,7 +23,7 @@ data:
         type: passiveScan-config
       - parameters:
           maxDuration: 5
-          url: http://frontend:80/
+          url: http://frontend-service:80/
         type: spider
       - parameters:
           maxDuration: 0
