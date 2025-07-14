@@ -23,3 +23,10 @@ spec:
             name: frontend-service
             port:
               number: 80
+      - path: /eureka
+        pathType: Prefix
+        backend:
+          service:
+            name: eureka-service
+            port:
+              number: 8761
