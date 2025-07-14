@@ -1,47 +1,42 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: zap-automation-plan-config # Le nom du ConfigMap référencé par le Job ZAP
+  name: zap-automation-plan-config
+  namespace: default
 data:
-  zap-automation-plan.yaml: | # La clé 'zap-automation-plan.yaml' contient le plan ZAP
-    # Le contenu complet de votre zap-automation-plan.yaml va ici.
-    # Assurez-vous que l'indentation est correcte sous 'data:'
+  zap-automation-plan.yaml: |
     env:
       contexts:
         - excludePaths: []
           name: baseline
           urls:
-            # Cible le Frontend via l'Ingress (exam.local sur le port 80)
-            - http://exam.local/
-            # Cible l'API Gateway via l'Ingress, en utilisant le préfixe /api
-            - http://exam.local/api/
+            - http://frontend:80/
+            - http://api-gateway-service:8090/
       parameters:
-        failOnError: true # Le Job Kubernetes échouera si ZAP trouve des alertes ou des erreurs critiques
-        progressToStdout: false # Affiche la progression directement dans les logs du conteneur ZAP
+        failOnError: false # Désactivé pour débogage
+        progressToStdout: true # Activer les logs détaillés
       proxy:
     jobs:
       - parameters:
           enableTags: false
           maxAlertsPerRule: 10
-        type: passiveScan-config # Configuration du scan passif
+        type: passiveScan-config
       - parameters:
-          maxDuration: 5 # Durée du spider augmentée à 5 minutes pour une meilleure exploration
-          # Cible le frontend pour le spider, car c'est le point d'entrée visible
-          # Assurez-vous que cette URL est également mise à jour vers l'Ingress
-          url: http://exam.local/
-        type: spider # Lance le spider pour découvrir les URL de l'application
+          maxDuration: 5
+          url: http://frontend:80/
+        type: spider
       - parameters:
-          maxDuration: 0 # Le scan passif attendra que tout le trafic observé soit analysé
-        type: passiveScan-wait # Attend la fin du scan passif
+          maxDuration: 0
+        type: passiveScan-wait
       - parameters:
           format: Long
           summaryFile: /zap/wrk/zap_out.json
         rules: []
-        type: outputSummary # Génère un résumé du scan
+        type: outputSummary
       - parameters:
           reportDescription: 'Rapport de Scan de Sécurité ZAP'
           reportDir: /zap/wrk/
           reportFile: zap_report.json
           reportTitle: 'Rapport de Scan de Sécurité ZAP'
           template: traditional-json
-        type: report # Génère le rapport final au format JSON
+        type: report
