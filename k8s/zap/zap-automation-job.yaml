@@ -1,27 +1,39 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: owasp-zap-automation-job # Nom du Job Kubernetes
+  name: owasp-zap-automation-job
 spec:
   template:
     metadata:
       labels:
         app: owasp-zap-automation
     spec:
+      hostAliases:
+      - ip: "192.168.110.200" # IP du service ingress-nginx-controller
+        hostnames:
+        - "exam.local"
       containers:
-        - name: zap-automation
-          image: zaproxy/zap-stable:latest # Image ZAP stable
-          command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
-          volumeMounts:
-            - name: zap-plan-volume
-              mountPath: /zap/zap-automation-plan.yaml
-              subPath: zap-automation-plan.yaml
-            - name: zap-work-volume
-              mountPath: /zap/wrk
-      restartPolicy: Never # Très important pour un Job : il ne redémarre pas en cas d'erreur
-      volumes:
+      - name: zap-automation
+        image: zaproxy/zap-stable:2.15.0 # Version spécifique
+        command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
+        volumeMounts:
         - name: zap-plan-volume
-          configMap:
-            name: zap-automation-plan-config # Référence au ConfigMap qui contient le plan ZAP
+          mountPath: /zap/zap-automation-plan.yaml
+          subPath: zap-automation-plan.yaml
         - name: zap-work-volume
-          emptyDir: {} # Volume temporaire pour les rapports de ZAP
+          mountPath: /zap/wrk
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1"
+      restartPolicy: Never
+      volumes:
+      - name: zap-plan-volume
+        configMap:
+          name: zap-automation-plan-config
+      - name: zap-work-volume
+        emptyDir: {}
+      ttlSecondsAfterFinished: 3600 # Conserve le job pendant 1 heure pour débogage
