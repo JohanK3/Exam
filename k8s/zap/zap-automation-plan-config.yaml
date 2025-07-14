@@ -11,10 +11,10 @@ data:
         - excludePaths: []
           name: baseline
           urls:
-            # Cible le service Frontend interne via son nom de service et son port Kubernetes
-            - http://frontend:80/
-            # Cible le service API Gateway interne via son nom de service et son port Kubernetes
-            - http://api-gateway-service:8090/
+            # Cible le Frontend via l'Ingress (exam.local sur le port 80)
+            - http://exam.local/
+            # Cible l'API Gateway via l'Ingress, en utilisant le préfixe /api
+            - http://exam.local/api/
       parameters:
         failOnError: true # Le Job Kubernetes échouera si ZAP trouve des alertes ou des erreurs critiques
         progressToStdout: false # Affiche la progression directement dans les logs du conteneur ZAP
@@ -27,7 +27,8 @@ data:
       - parameters:
           maxDuration: 5 # Durée du spider augmentée à 5 minutes pour une meilleure exploration
           # Cible le frontend pour le spider, car c'est le point d'entrée visible
-          url: http://frontend:80/
+          # Assurez-vous que cette URL est également mise à jour vers l'Ingress
+          url: http://exam.local/
         type: spider # Lance le spider pour découvrir les URL de l'application
       - parameters:
           maxDuration: 0 # Le scan passif attendra que tout le trafic observé soit analysé
