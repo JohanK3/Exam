@@ -8,10 +8,6 @@ spec:
       labels:
         app: owasp-zap-automation
     spec:
-      hostAliases: # Optionnel si tu utilises le ConfigMap avec frontend et api-gateway-service
-      - ip: "192.168.110.200"
-        hostnames:
-        - "exam.local"
       containers:
       - name: zap-automation
         image: zaproxy/zap-stable:2.15.0
