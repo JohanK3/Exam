@@ -8,13 +8,13 @@ spec:
       labels:
         app: owasp-zap-automation
     spec:
-      hostAliases:
-      - ip: "192.168.110.200" # IP du service ingress-nginx-controller
+      hostAliases: # Optionnel si tu utilises le ConfigMap avec frontend et api-gateway-service
+      - ip: "192.168.110.200"
         hostnames:
         - "exam.local"
       containers:
       - name: zap-automation
-        image: zaproxy/zap-stable:2.15.0 # Version spécifique
+        image: zaproxy/zap-stable:2.15.0
         command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
         volumeMounts:
         - name: zap-plan-volume
@@ -36,4 +36,3 @@ spec:
           name: zap-automation-plan-config
       - name: zap-work-volume
         emptyDir: {}
-      ttlSecondsAfterFinished: 3600 # Conserve le job pendant 1 heure pour débogage
