@@ -49,7 +49,6 @@ pipeline {
                         'backend/eureka-service/Dockerfile',
                         'backend/api-gateway-service/Dockerfile',
                         'backend/answer-service/Dockerfile',
-                        // Assurez-vous que ces chemins sont corrects, si ce sont des répertoires, ils devraient pointer vers le Dockerfile spécifique.
                         'backend/exam-service/Dockerfile',
                         'backend/course-service/Dockerfile',
                         'backend/user-service/Dockerfile',
@@ -160,10 +159,10 @@ pipeline {
             steps {
                 script {
                     sh '''
-                        echo "[1] Déploiement Eureka"
+                        echo "[1] Déploiement Eureka Service"
                         kubectl apply -f k8s/eureka/
 
-                        echo "[2] Déploiement API Gateway"
+                        echo "[2] Déploiement API Gateway Service"
                         kubectl apply -f k8s/api-gateway/
 
                         echo "[3] Déploiement Frontend"
@@ -173,51 +172,51 @@ pipeline {
                         kubectl apply -f k8s/answer-service/
 
                         echo "[5] Déploiement Exam Service"
-                        kubectl apply -f k8s/exam-service/
+                        # kubectl apply -f k8s/exam-service/
 
                         echo "[6] Déploiement Course Service"
-                        kubectl apply -f k8s/course-service/
+                        # kubectl apply -f k8s/course-service/
 
                         echo "[7] Déploiement User Service"
-                        kubectl apply -f k8s/user-service/
+                        # kubectl apply -f k8s/user-service/
 
-                        echo "[8] Déploiement Database - MongoDB (Answer Service)"
+                        echo "[8] Déploiement MongoDB pour Answer Service"
                         kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
                         kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
                         kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
                         kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
-                        echo "[9] Déploiement Database - MySQL (Exam Service)"
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
+                        echo "[9] Déploiement MySQL pour Exam Service"
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
 
-                        echo "[10] Déploiement Database - PostgreSQL (User Service)"
-                        kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
+                        echo "[10] Déploiement PostgreSQL pour User Service"
+                        # kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
 
-                        echo "[11] Déploiement ZAP ConfigMap"
-                        kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
+                        # echo "[11] Déploiement ZAP ConfigMap"
+                        # kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        echo "[12] Déploiement ZAP Job"
-                        export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
-                        envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
+                        # echo "[12] Déploiement ZAP Job"
+                        # export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
+                        # envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
-                        echo "[13] Attente ZAP Job"
-                        kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
+                        # echo "[13] Attente ZAP Job"
+                        # kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
-                        echo "[14] Récupération rapport ZAP"
-                        POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
-                        kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
+                        # echo "[14] Récupération rapport ZAP"
+                        # POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+                        # kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
-                        echo "[15] Suppression ZAP Job"
-                        kubectl delete job ${ZAP_JOB_NAME} || true
+                        # echo "[15] Suppression ZAP Job"
+                        # kubectl delete job ${ZAP_JOB_NAME} || true
 
-                        echo "[16] Déploiement Ingress"
-                        kubectl apply -f k8s/ingress.yaml
+                        # echo "[16] Déploiement Ingress"
+                        # kubectl apply -f k8s/ingress.yaml
                     '''
                 }
             }
