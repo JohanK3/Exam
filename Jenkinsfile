@@ -176,8 +176,8 @@ pipeline {
                         echo "[7] Déploiement User Service"
                         kubectl apply -f k8s/user-service/
 
-                        echo "[8] Déploiement Database"
-                        kubectl apply -f k8s/database/
+                        # echo "[8] Déploiement Database"
+                        # kubectl apply -f k8s/database/
 
                         echo "[9] Déploiement ZAP ConfigMap"
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
