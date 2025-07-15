@@ -49,9 +49,10 @@ pipeline {
                         'backend/eureka-service/Dockerfile',
                         'backend/api-gateway-service/Dockerfile',
                         'backend/answer-service/Dockerfile',
-                        'backend/exam-service',
-                        'backend/course-service',
-                        'backend/user-service',
+                        // Assurez-vous que ces chemins sont corrects, si ce sont des répertoires, ils devraient pointer vers le Dockerfile spécifique.
+                        'backend/exam-service/Dockerfile',
+                        'backend/course-service/Dockerfile',
+                        'backend/user-service/Dockerfile',
                         'frontend/Dockerfile'
                     ]
                     for (df in dockerfiles) {
@@ -104,7 +105,11 @@ pipeline {
                     }
                     sh '''
                         for f in trivy-*.json; do
-                            jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q . && echo "Vulnérabilités critiques trouvées mais pipeline continue (dev)" || true
+                            if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q .; then
+                                echo "Vulnérabilités critiques trouvées dans $f. Le pipeline continue mais soyez vigilant."
+                            else
+                                echo "Aucune vulnérabilité critique détectée dans $f."
+                            fi
                         done
                     '''
                     archiveArtifacts artifacts: 'trivy-*.json'
@@ -176,27 +181,42 @@ pipeline {
                         echo "[7] Déploiement User Service"
                         kubectl apply -f k8s/user-service/
 
-                        # echo "[8] Déploiement Database"
-                        # kubectl apply -f k8s/database/
+                        echo "[8] Déploiement Database - MongoDB (Answer Service)"
+                        kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
+                        kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
+                        kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
+                        kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
-                        echo "[9] Déploiement ZAP ConfigMap"
+                        echo "[9] Déploiement Database - MySQL (Exam Service)"
+                        kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
+                        kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
+                        kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
+                        kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
+
+                        echo "[10] Déploiement Database - PostgreSQL (User Service)"
+                        kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
+                        kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
+                        kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
+                        kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
+
+                        echo "[11] Déploiement ZAP ConfigMap"
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        echo "[10] Déploiement ZAP Job"
+                        echo "[12] Déploiement ZAP Job"
                         export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
                         envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
-                        echo "[11] Attente ZAP Job"
+                        echo "[13] Attente ZAP Job"
                         kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
-                        echo "[12] Récupération rapport ZAP"
+                        echo "[14] Récupération rapport ZAP"
                         POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
                         kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
-                        echo "[13] Suppression ZAP Job"
+                        echo "[15] Suppression ZAP Job"
                         kubectl delete job ${ZAP_JOB_NAME} || true
 
-                        echo "[14] Déploiement Ingress"
+                        echo "[16] Déploiement Ingress"
                         kubectl apply -f k8s/ingress.yaml
                     '''
                 }
@@ -237,7 +257,12 @@ pipeline {
             steps {
                 sh '''
                     if [ ! -f zap_report.json ]; then echo "Pas de rapport ZAP"; exit 0; fi
-                    jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' zap_report.json | grep -q . && exit 1 || echo "Pas de vulnérabilités critiques"
+                    if jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' zap_report.json | grep -q .; then
+                        echo "ERREUR: Vulnérabilités critiques ou élevées détectées par ZAP. Échec du pipeline."
+                        exit 1
+                    else
+                        echo "Aucune vulnérabilité critique ou élevée détectée par ZAP."
+                    fi
                 '''
                 archiveArtifacts artifacts: 'zap_report.json'
             }
