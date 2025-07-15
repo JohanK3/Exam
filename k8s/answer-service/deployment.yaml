@@ -1,12 +1,11 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: answer-service # Nom de votre déploiement pour answer-service
+  name: answer-service
   labels:
     app: answer-service
 spec:
-  replicas: 1 # Nombre de réplicas souhaité
+  replicas: 1
   selector:
     matchLabels:
       app: answer-service
@@ -16,40 +15,24 @@ spec:
         app: answer-service
     spec:
       containers:
-      - name: answer-service
-        image: johankarl/exam-answer-service:latest # L'image Docker que vous poussez sur Docker Hub
-        imagePullPolicy: IfNotPresent # Très important pour les images qui viennent de Docker Hub
-        ports:
-        - containerPort: 8081 # Port par défaut de votre answer-service (à vérifier dans votre code)
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: prod
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: http://eureka-service:8761/eureka # Pointe vers le Service Kubernetes d'Eureka
-        - name: SPRING_DATA_MONGODB_URI # Variable d'environnement pour la connexion MongoDB
-          value: mongodb://mongo-answer-db:27017/answerdb # Utilise le nom du Service MongoDB
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m"
-        livenessProbe: # Sonde de liveness
-          httpGet:
-            path: /actuator/health # Chemin de la health check Spring Boot
-            port: 8081
-          initialDelaySeconds: 120 # Peut prendre du temps à démarrer et se connecter à Eureka/MongoDB
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe: # Sonde de readiness
-          httpGet:
-            path: /actuator/health
-            port: 8081
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        resources: # Allocation de ressources
-          requests:
-            memory: "512Mi"
-            cpu: "300m"
-          limits:
-            memory: "1Gi"
-            cpu: "600m"
+        - name: answer-service
+          image: johankarl/exam-answer-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: http://eureka-service:8761/eureka
+            - name: SPRING_DATA_MONGODB_URI
+              value: mongodb://mongo-answer-db:27017/answerdb
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "600m"
