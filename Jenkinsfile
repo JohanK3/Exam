@@ -164,24 +164,39 @@ pipeline {
                         echo "[3] Déploiement Frontend"
                         kubectl apply -f k8s/frontend/
 
-                        echo "[4] Déploiement ZAP ConfigMap"
+                        echo "[4] Déploiement Answer Service"
+                        kubectl apply -f k8s/answer-service/
+
+                        echo "[5] Déploiement Exam Service"
+                        kubectl apply -f k8s/exam-service/
+
+                        echo "[6] Déploiement Course Service"
+                        kubectl apply -f k8s/course-service/
+
+                        echo "[7] Déploiement User Service"
+                        kubectl apply -f k8s/user-service/
+
+                        echo "[8] Déploiement Database"
+                        kubectl apply -f k8s/database/
+
+                        echo "[9] Déploiement ZAP ConfigMap"
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        echo "[5] Déploiement ZAP Job"
+                        echo "[10] Déploiement ZAP Job"
                         export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
                         envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
-                        echo "[6] Attente ZAP Job"
+                        echo "[11] Attente ZAP Job"
                         kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
-                        echo "[7] Récupération rapport ZAP"
+                        echo "[12] Récupération rapport ZAP"
                         POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
                         kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
-                        echo "[8] Suppression ZAP Job"
+                        echo "[13] Suppression ZAP Job"
                         kubectl delete job ${ZAP_JOB_NAME} || true
 
-                        echo "[9] Déploiement Ingress"
+                        echo "[14] Déploiement Ingress"
                         kubectl apply -f k8s/ingress.yaml
                     '''
                 }
