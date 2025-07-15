@@ -184,6 +184,7 @@ pipeline {
                         kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
                         kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
                         kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
+                        kubectl apply -f k8s/answer-service/mongo-answer-pv.yaml
                         kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
                         echo "[9] Déploiement MySQL pour Exam Service"
