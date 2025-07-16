@@ -175,7 +175,7 @@ pipeline {
                         # kubectl apply -f k8s/exam-service/
 
                         echo "[6] Déploiement Course Service"
-                        # kubectl apply -f k8s/course-service/
+                        kubectl apply -f k8s/course-service/
 
                         echo "[7] Déploiement User Service"
                         # kubectl apply -f k8s/user-service/
@@ -200,24 +200,24 @@ pipeline {
                         # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
 
                         # echo "[11] Déploiement ZAP ConfigMap"
-                        # kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
+                        kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
                         # echo "[12] Déploiement ZAP Job"
-                        # export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
-                        # envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
+                        export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
+                        envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
                         # echo "[13] Attente ZAP Job"
-                        # kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
+                        kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
                         # echo "[14] Récupération rapport ZAP"
-                        # POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
-                        # kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
+                        POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+                        kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
                         # echo "[15] Suppression ZAP Job"
                         # kubectl delete job ${ZAP_JOB_NAME} || true
 
                         # echo "[16] Déploiement Ingress"
-                        # kubectl apply -f k8s/ingress.yaml
+                        kubectl apply -f k8s/ingress.yaml
                     '''
                 }
             }
