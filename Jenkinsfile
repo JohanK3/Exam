@@ -14,7 +14,7 @@ pipeline {
 
         // SonarQube
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
-        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_HOST_URL = 'http://192.168.110.149:9000'
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
 
         // JMeter
