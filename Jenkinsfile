@@ -83,6 +83,28 @@ pipeline {
             }
         }
 
+        stage('Analyse SonarQube') {
+            steps {
+                script {
+                    withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
+                        def services = ['api-gateway-service', 'answer-service', 'course-service', 'eureka-service', 'exam-service', 'user-service']
+                        services.each {
+                            dir("backend/${it}") {
+                                withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
+                                }
+                            }
+                        }
+                        dir("frontend") {
+                            withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         stage('Build Docker Images') {
             steps { sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build' }
         }
@@ -133,28 +155,6 @@ pipeline {
             }
         }
 
-        stage('Analyse SonarQube') {
-            steps {
-                script {
-                    withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
-                        def services = ['api-gateway-service', 'answer-service', 'course-service', 'eureka-service', 'exam-service', 'user-service']
-                        services.each {
-                            dir("backend/${it}") {
-                                withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
-                                }
-                            }
-                        }
-                        dir("frontend") {
-                            withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         stage('Déploiement Kubernetes') {
             steps {
                 script {
@@ -199,10 +199,10 @@ pipeline {
                         # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
                         # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
 
-                        echo "[11] Déploiement ZAP ConfigMap"
+                        # echo "[11] Déploiement ZAP ConfigMap"
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        echo "[12] Déploiement ZAP Job"
+                        # echo "[12] Déploiement ZAP Job"
                         export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
                         envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
