@@ -7,27 +7,22 @@ pipeline {
     }
 
     environment {
-        // Docker Hub
         DOCKER_HUB_USERNAME = 'johankarl'
         DOCKER_HUB_CRED_ID = 'dockerhub'
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
 
-        // SonarQube
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
         SONAR_HOST_URL = 'http://192.168.110.149:9000'
         SONAR_TOKEN_CRED_ID = 'sonar-token-for-jenkins'
 
-        // JMeter
         JMETER_HOME = '/opt/jmeter'
 
-        // Helm Prometheus/Grafana
         HELM_REPO_NAME = 'prometheus-community'
         HELM_REPO_URL = 'https://prometheus-community.github.io/helm-charts'
         PROMETHEUS_CHART_NAME = 'kube-prometheus-stack'
         PROMETHEUS_RELEASE_NAME = 'prometheus'
         MONITORING_NAMESPACE = 'monitoring'
 
-        // Chemin du fichier de configuration Kubernetes
         KUBECONFIG = '/home/karl/.kube/config'
     }
 
@@ -99,9 +94,14 @@ pipeline {
                         "exam-user-service",
                         "exam-frontend"
                     ]
-                    images.each {
-                        sh "trivy image --format json --timeout 15m --output trivy-${it}.json ${it}"
+                    def trivyJobs = [:]
+                    images.each { img ->
+                        trivyJobs[img] = {
+                            sh "trivy image --format json --timeout 15m --output trivy-${img}.json ${img}"
+                        }
                     }
+                    parallel trivyJobs
+
                     sh '''
                         for f in trivy-*.json; do
                             if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q .; then
@@ -119,14 +119,18 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
+                    def services = ['eureka-service', 'api-gateway-service', 'answer-service', 'exam-service', 'course-service', 'user-service', 'frontend']
+                    def pushJobs = [:]
                     withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
-                        def services = ['eureka-service', 'api-gateway-service', 'answer-service', 'exam-service', 'course-service', 'user-service', 'frontend']
-                        services.each {
-                            def local = "exam-${it}"
+                        services.each { svc ->
+                            def local = "exam-${svc}"
                             def remote = "${DOCKER_HUB_USERNAME}/${local}"
-                            sh "docker tag ${local} ${remote}:latest && docker push ${remote}:latest"
+                            pushJobs[svc] = {
+                                sh "docker tag ${local} ${remote}:latest && docker push ${remote}:latest"
+                            }
                         }
+                        parallel pushJobs
                         sh "docker logout"
                     }
                 }
@@ -138,18 +142,24 @@ pipeline {
                 script {
                     withSonarQubeEnv(env.SONAR_SCANNER_NAME) {
                         def services = ['api-gateway-service', 'answer-service', 'course-service', 'eureka-service', 'exam-service', 'user-service']
-                        services.each {
-                            dir("backend/${it}") {
-                                withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
+                        def sonarJobs = [:]
+                        services.each { svc ->
+                            sonarJobs[svc] = {
+                                dir("backend/${svc}") {
+                                    withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                        sh "mvn sonar:sonar -Dsonar.projectKey=exam-${svc} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
+                                    }
                                 }
                             }
                         }
-                        dir("frontend") {
-                            withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                        sonarJobs["frontend"] = {
+                            dir("frontend") {
+                                withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
+                                    sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                }
                             }
                         }
+                        parallel sonarJobs
                     }
                 }
             }
@@ -157,77 +167,29 @@ pipeline {
 
         stage('Déploiement Kubernetes') {
             steps {
-                script {
-                    sh '''
-                        echo "[1] Déploiement Eureka Service"
-                        kubectl apply -f k8s/eureka/
+                sh '''
+                    kubectl apply -f k8s/eureka/
+                    kubectl apply -f k8s/api-gateway/
+                    kubectl apply -f k8s/frontend/
+                    kubectl apply -f k8s/answer-service/
+                    # kubectl apply -f k8s/exam-service/
+                    # kubectl apply -f k8s/course-service/
+                    # kubectl apply -f k8s/user-service/
 
-                        echo "[2] Déploiement API Gateway Service"
-                        kubectl apply -f k8s/api-gateway/
+                    kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
+                    kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
+                    kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
+                    kubectl apply -f k8s/answer-service/mongo-answer-pv.yaml
+                    kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
-                        echo "[3] Déploiement Frontend"
-                        kubectl apply -f k8s/frontend/
-
-                        echo "[4] Déploiement Answer Service"
-                        kubectl apply -f k8s/answer-service/
-
-                        echo "[5] Déploiement Exam Service"
-                        # kubectl apply -f k8s/exam-service/
-
-                        echo "[6] Déploiement Course Service"
-                        # kubectl apply -f k8s/course-service/
-                        kubectl apply -f k8s/course-service/
-
-                        echo "[7] Déploiement User Service"
-                        # kubectl apply -f k8s/user-service/
-
-                        echo "[8] Déploiement MongoDB pour Answer Service"
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-pv.yaml
-                        kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
-
-                        echo "[9] Déploiement MySQL pour Exam Service"
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
-                        # kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
-
-                        echo "[10] Déploiement PostgreSQL pour User Service"
-                        # kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
-                        # kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
-                        # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
-                        # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
-
-                        # echo "[11] Déploiement ZAP ConfigMap"
-                        # kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
-                        kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
-
-                        # echo "[12] Déploiement ZAP Job"
-                        # export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
-                        # envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
-                        export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
-                        envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
-
-                        # echo "[13] Attente ZAP Job"
-                        # kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
-                        kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
-
-                        # echo "[14] Récupération rapport ZAP"
-                        # POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
-                        # kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
-                        POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
-                        kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
-
-                        # echo "[15] Suppression ZAP Job"
-                        # kubectl delete job ${ZAP_JOB_NAME} || true
-
-                        # echo "[16] Déploiement Ingress"
-                        # kubectl apply -f k8s/ingress.yaml
-                        kubectl apply -f k8s/ingress.yaml
-                    '''
-                }
+                    kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
+                    export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
+                    envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
+                    kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
+                    POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+                    kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
+                    kubectl apply -f k8s/ingress.yaml
+                '''
             }
         }
 
@@ -247,14 +209,14 @@ pipeline {
             steps {
                 script {
                     def targetHost = "exam.local"
-
-                    sh """
-                        echo "[1] Test de charge FRONTEND"
-                        ${JMETER_HOME}/bin/jmeter -n -t frontend.jmx -Jhost=${targetHost} -l frontend-results.jtl -e -o frontend-report
-
-                        echo "[2] Test de charge EXAM"
-                        ${JMETER_HOME}/bin/jmeter -n -t exam.jmx -Jhost=${targetHost} -l exam-results.jtl -e -o exam-report
-                    """
+                    def jmeterJobs = [:]
+                    jmeterJobs["frontend"] = {
+                        sh "${JMETER_HOME}/bin/jmeter -n -t frontend.jmx -Jhost=${targetHost} -l frontend-results.jtl -e -o frontend-report"
+                    }
+                    jmeterJobs["exam"] = {
+                        sh "${JMETER_HOME}/bin/jmeter -n -t exam.jmx -Jhost=${targetHost} -l exam-results.jtl -e -o exam-report"
+                    }
+                    parallel jmeterJobs
 
                     archiveArtifacts artifacts: 'frontend-report/**, frontend-results.jtl, exam-report/**, exam-results.jtl'
                 }
