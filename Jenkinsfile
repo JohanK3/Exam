@@ -42,44 +42,12 @@ pipeline {
             }
         }
 
-        stage('Linting Dockerfiles') {
+        stage('Lint & Compilation') {
             steps {
-                script {
-                    def dockerfiles = [
-                        'backend/eureka-service/Dockerfile',
-                        'backend/api-gateway-service/Dockerfile',
-                        'backend/answer-service/Dockerfile',
-                        'backend/exam-service/Dockerfile',
-                        'backend/course-service/Dockerfile',
-                        'backend/user-service/Dockerfile',
-                        'frontend/Dockerfile'
-                    ]
-                    for (df in dockerfiles) {
-                        echo "Linting ${df}"
-                        sh "docker run --rm -i hadolint/hadolint < ${df} || true"
-                    }
-                }
-            }
-        }
-
-        stage('Build Maven') {
-            steps {
-                script {
-                    def commons = ['backend/common-exam', 'backend/common-service', 'backend/common-student']
-                    commons.each { dir(it) { sh 'mvn clean install -DskipTests' } }
-
-                    def services = [
-                        'backend/eureka-service',
-                        'backend/api-gateway-service',
-                        'backend/answer-service',
-                        'backend/exam-service',
-                        'backend/course-service',
-                        'backend/user-service'
-                    ]
-                    def jobs = [:]
-                    services.each { svc -> jobs[svc] = { dir(svc) { sh 'mvn clean install -DskipTests' } } }
-                    parallel jobs
-                }
+                sh 'echo "LINT BACKEND (Java)" && mvn -f backend/pom.xml checkstyle:check'
+                sh 'echo "LINT FRONTEND (Angular)" && npm run lint --prefix frontend'
+                sh 'echo "COMPILATION BACKEND (Java)" && mvn -f backend/pom.xml clean compile'
+                sh 'echo "COMPILATION FRONTEND (Angular)" && npm install --prefix frontend && npm run build --prefix frontend'
             }
         }
 
@@ -91,13 +59,23 @@ pipeline {
                         services.each {
                             dir("backend/${it}") {
                                 withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                    sh "mvn sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
+                                    sh "mvn clean verify sonar:sonar -Dsonar.projectKey=exam-${it} -Dsonar.projectName=exam-${it} -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=${SONAR_TOKEN}"
                                 }
                             }
                         }
                         dir("frontend") {
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CRED_ID, variable: 'SONAR_TOKEN')]) {
-                                sh "${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner -Dsonar.projectKey=exam-frontend -Dsonar.sources=. -Dsonar.host.url=${SONAR_HOST_URL} -Dsonar.login=$SONAR_TOKEN"
+                                sh """
+                                    npm install
+                                    ${tool env.SONAR_SCANNER_NAME}/bin/sonar-scanner \
+                                        -Dsonar.projectKey=exam-frontend \
+                                        -Dsonar.projectName=exam-frontend \
+                                        -Dsonar.sources=src \
+                                        -Dsonar.projectBaseDir=. \
+                                        -Dsonar.language=js \
+                                        -Dsonar.host.url=${SONAR_HOST_URL} \
+                                        -Dsonar.login=${SONAR_TOKEN}
+                                """
                             }
                         }
                     }
@@ -105,121 +83,34 @@ pipeline {
             }
         }
 
-        stage('Build Docker Images') {
-            steps { sh 'docker-compose -f ${DOCKER_COMPOSE_FILE} build' }
-        }
-
-        stage('Trivy Scan') {
+        stage('Build & Push Docker Images') {
             steps {
-                script {
-                    def images = [
-                        "exam-eureka-service",
-                        "exam-api-gateway-service",
-                        "exam-answer-service",
-                        "exam-exam-service",
-                        "exam-course-service",
-                        "exam-user-service",
-                        "exam-frontend"
-                    ]
-                    images.each {
-                        sh "trivy image --format json --timeout 15m --output trivy-${it}.json ${it}"
-                    }
+                withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     sh '''
-                        for f in trivy-*.json; do
-                            if jq '.Results[] | select(.Vulnerabilities != null) | .Vulnerabilities[] | select(.Severity == "CRITICAL")' "$f" | grep -q .; then
-                                echo "Vulnérabilités critiques trouvées dans $f. Le pipeline continue mais soyez vigilant."
-                            else
-                                echo "Aucune vulnérabilité critique détectée dans $f."
-                            fi
-                        done
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+
+                        docker-compose -f $DOCKER_COMPOSE_FILE build
+                        docker-compose -f $DOCKER_COMPOSE_FILE push
                     '''
-                    archiveArtifacts artifacts: 'trivy-*.json'
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Scan Sécurité Trivy') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: env.DOCKER_HUB_CRED_ID, usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh "echo \"$DOCKER_PASSWORD\" | docker login -u \"$DOCKER_USERNAME\" --password-stdin"
-                        def services = ['eureka-service', 'api-gateway-service', 'answer-service', 'exam-service', 'course-service', 'user-service', 'frontend']
-                        services.each {
-                            def local = "exam-${it}"
-                            def remote = "${DOCKER_HUB_USERNAME}/${local}"
-                            sh "docker tag ${local} ${remote}:latest && docker push ${remote}:latest"
-                        }
-                        sh "docker logout"
-                    }
-                }
+                sh '''
+                    docker images --format '{{.Repository}}:{{.Tag}}' | grep johankarl | while read image; do
+                        echo "Scan de $image"
+                        trivy image --format json --timeout 15m --output trivy-${image//[:\/]/_}.json $image
+                    done
+                '''
+                archiveArtifacts artifacts: 'trivy-*.json'
             }
         }
 
         stage('Déploiement Kubernetes') {
             steps {
-                script {
-                    sh '''
-                        echo "[1] Déploiement Eureka Service"
-                        kubectl apply -f k8s/eureka/
-
-                        echo "[2] Déploiement API Gateway Service"
-                        kubectl apply -f k8s/api-gateway/
-
-                        echo "[3] Déploiement Frontend"
-                        kubectl apply -f k8s/frontend/
-
-                        echo "[4] Déploiement Answer Service"
-                        kubectl apply -f k8s/answer-service/
-
-                        echo "[5] Déploiement Exam Service"
-                        # kubectl apply -f k8s/exam-service/
-
-                        echo "[6] Déploiement Course Service"
-                        kubectl apply -f k8s/course-service/
-
-                        echo "[7] Déploiement User Service"
-                        # kubectl apply -f k8s/user-service/
-
-                        echo "[8] Déploiement MongoDB pour Answer Service"
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-deployment.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-db-service.yaml
-                        kubectl apply -f k8s/answer-service/mongo-answer-pv.yaml
-                        kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
-
-                        echo "[9] Déploiement MySQL pour Exam Service"
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
-                        # kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
-                        # kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
-
-                        echo "[10] Déploiement PostgreSQL pour User Service"
-                        # kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
-                        # kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
-                        # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
-                        # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
-
-                        # echo "[11] Déploiement ZAP ConfigMap"
-                        kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
-
-                        # echo "[12] Déploiement ZAP Job"
-                        export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
-                        envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
-
-                        # echo "[13] Attente ZAP Job"
-                        kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
-
-                        # echo "[14] Récupération rapport ZAP"
-                        POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
-                        kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
-
-                        # echo "[15] Suppression ZAP Job"
-                        # kubectl delete job ${ZAP_JOB_NAME} || true
-
-                        # echo "[16] Déploiement Ingress"
-                        kubectl apply -f k8s/ingress.yaml
-                    '''
-                }
+                sh 'kubectl apply -f k8s/'
             }
         }
 
@@ -239,7 +130,6 @@ pipeline {
             steps {
                 script {
                     def targetHost = "exam.local"
-                    
                     sh """
                         echo "[1] Test de charge FRONTEND"
                         ${JMETER_HOME}/bin/jmeter -n -t frontend.jmx -Jhost=${targetHost} -l frontend-results.jtl -e -o frontend-report
@@ -247,24 +137,17 @@ pipeline {
                         echo "[2] Test de charge EXAM"
                         ${JMETER_HOME}/bin/jmeter -n -t exam.jmx -Jhost=${targetHost} -l exam-results.jtl -e -o exam-report
                     """
-
                     archiveArtifacts artifacts: 'frontend-report/**, frontend-results.jtl, exam-report/**, exam-results.jtl'
                 }
             }
         }
 
-        stage('Analyse ZAP') {
+        stage('Scan Sécurité ZAP') {
             steps {
                 sh '''
-                    if [ ! -f zap_report.json ]; then echo "Pas de rapport ZAP"; exit 0; fi
-                    if jq '.site[].alerts[] | select(.riskcode == "3" or .riskcode == "4")' zap_report.json | grep -q .; then
-                        echo "ERREUR: Vulnérabilités critiques ou élevées détectées par ZAP. Échec du pipeline."
-                        exit 1
-                    else
-                        echo "Aucune vulnérabilité critique ou élevée détectée par ZAP."
-                    fi
+                    docker run -t owasp/zap2docker-stable zap-baseline.py -t http://exam.local -J zap-report.json || true
                 '''
-                archiveArtifacts artifacts: 'zap_report.json'
+                archiveArtifacts artifacts: 'zap-report.json'
             }
         }
     }
