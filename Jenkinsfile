@@ -172,13 +172,14 @@ pipeline {
                         kubectl apply -f k8s/answer-service/
 
                         echo "[5] Déploiement Exam Service"
-                        kubectl apply -f k8s/exam-service/
+                        # kubectl apply -f k8s/exam-service/
 
                         echo "[6] Déploiement Course Service"
+                        # kubectl apply -f k8s/course-service/
                         kubectl apply -f k8s/course-service/
 
                         echo "[7] Déploiement User Service"
-                        kubectl apply -f k8s/user-service/
+                        # kubectl apply -f k8s/user-service/
 
                         echo "[8] Déploiement MongoDB pour Answer Service"
                         kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
@@ -188,28 +189,34 @@ pipeline {
                         kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
                         echo "[9] Déploiement MySQL pour Exam Service"
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
 
                         echo "[10] Déploiement PostgreSQL pour User Service"
-                        kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
+                        # kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
 
-                        echo "[11] Déploiement ZAP ConfigMap"
+                        # echo "[11] Déploiement ZAP ConfigMap"
+                        # kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
 
-                        echo "[12] Déploiement ZAP Job"
+                        # echo "[12] Déploiement ZAP Job"
+                        # export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
+                        # envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
                         export ZAP_JOB_NAME=owasp-zap-automation-${BUILD_NUMBER}
                         envsubst < k8s/zap/zap-automation-job.yaml | sed "s/owasp-zap-automation-job/${ZAP_JOB_NAME}/g" | kubectl apply -f -
 
                         # echo "[13] Attente ZAP Job"
+                        # kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
                         kubectl wait --for=condition=complete job/${ZAP_JOB_NAME} --timeout=900s || true
 
                         # echo "[14] Récupération rapport ZAP"
+                        # POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
+                        # kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
                         POD=$(kubectl get pods --selector=job-name=${ZAP_JOB_NAME} -o jsonpath='{.items[0].metadata.name}')
                         kubectl cp $POD:/zap/wrk/zap_report.json ./zap_report.json || true
 
@@ -217,6 +224,7 @@ pipeline {
                         # kubectl delete job ${ZAP_JOB_NAME} || true
 
                         # echo "[16] Déploiement Ingress"
+                        # kubectl apply -f k8s/ingress.yaml
                         kubectl apply -f k8s/ingress.yaml
                     '''
                 }
@@ -239,7 +247,7 @@ pipeline {
             steps {
                 script {
                     def targetHost = "exam.local"
-                    
+
                     sh """
                         echo "[1] Test de charge FRONTEND"
                         ${JMETER_HOME}/bin/jmeter -n -t frontend.jmx -Jhost=${targetHost} -l frontend-results.jtl -e -o frontend-report
