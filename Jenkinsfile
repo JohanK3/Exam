@@ -172,13 +172,13 @@ pipeline {
                         kubectl apply -f k8s/answer-service/
 
                         echo "[5] Déploiement Exam Service"
-                        kubectl apply -f k8s/exam-service/
+                        # kubectl apply -f k8s/exam-service/
 
                         echo "[6] Déploiement Course Service"
                         kubectl apply -f k8s/course-service/
 
                         echo "[7] Déploiement User Service"
-                        kubectl apply -f k8s/user-service/
+                        # kubectl apply -f k8s/user-service/
 
                         echo "[8] Déploiement MongoDB pour Answer Service"
                         kubectl apply -f k8s/answer-service/mongo-answer-db-pvc.yaml
@@ -188,16 +188,16 @@ pipeline {
                         kubectl wait --for=condition=Available deployment/mongo-answer-db --timeout=300s || true
 
                         echo "[9] Déploiement MySQL pour Exam Service"
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
-                        kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-pvc.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-deployment.yaml
+                        # kubectl apply -f k8s/exam-service/mysql-exam-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/mysql-exam-db --timeout=300s || true
 
                         echo "[10] Déploiement PostgreSQL pour User Service"
-                        kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
-                        kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
-                        kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
+                        # kubectl apply -f k8s/user-service/postgres-user-db-pvc.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-deployment.yaml
+                        # kubectl apply -f k8s/user-service/postgres-user-db-service.yaml
+                        # kubectl wait --for=condition=Available deployment/postgres-user-db --timeout=300s || true
 
                         echo "[11] Déploiement ZAP ConfigMap"
                         kubectl apply -f k8s/zap/zap-automation-plan-config.yaml
