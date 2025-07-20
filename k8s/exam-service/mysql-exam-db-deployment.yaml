@@ -1,10 +1,8 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mysql-exam-db # Nom de votre déploiement MySQL
-  labels:
-    app: mysql-exam-db
+  name: mysql-exam-db
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -16,45 +14,41 @@ spec:
         app: mysql-exam-db
     spec:
       containers:
-      - name: mysql-exam-db
-        image: mysql:8.0 # L'image Docker de MySQL. Vérifiez si c'est la version que vous utilisez.
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 3306 # Port par défaut de MySQL
-        env: # Variables d'environnement pour configurer MySQL
-        - name: MYSQL_ROOT_PASSWORD # Mot de passe de l'utilisateur root de MySQL
-          value: "root" # <-- ATTENTION: C'est une valeur en clair. Pour la production, utilisez des Secrets Kubernetes!
-        - name: MYSQL_DATABASE # Nom de la base de données par défaut à créer
-          value: "examdb" # Le nom de la DB que vos services (exam/course) vont utiliser
-        - name: MYSQL_USER # Nom d'un utilisateur non-root
-          value: "examuser"
-        - name: MYSQL_PASSWORD # Mot de passe de l'utilisateur non-root
-          value: "exampass" # <-- ATTENTION: Valeur en clair.
-        volumeMounts:
-        - name: mysql-exam-storage
-          mountPath: /var/lib/mysql # Chemin où MySQL stocke ses données à l'intérieur du conteneur
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "300m"
-          limits:
-            memory: "1Gi"
-            cpu: "600m"
-        livenessProbe:
-          tcpSocket:
-            port: 3306
-          initialDelaySeconds: 45
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 6
-        readinessProbe:
-          exec:
-            command: ["mysqladmin", "-u", "root", "-proot", "ping"] # Vérifie la connexion à MySQL
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
+        - name: mysql
+          image: mysql:8.0
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              value: "root"
+            - name: MYSQL_DATABASE
+              value: "examdb"
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+          livenessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+                - -uroot
+                - -proot
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mysqladmin
+                - ping
+                - -h
+                - localhost
+                - -uroot
+                - -proot
+            initialDelaySeconds: 10
+            periodSeconds: 5
       volumes:
-      - name: mysql-exam-storage
-        persistentVolumeClaim:
-          claimName: mysql-exam-data-pvc # Référence à la PVC créée ci-dessus
+        - name: mysql-data
+          persistentVolumeClaim:
+            claimName: mysql-exam-pvc

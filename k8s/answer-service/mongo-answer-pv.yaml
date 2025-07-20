@@ -1,12 +1,22 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: mongo-answer-data-pv
+  name: mongo-answer-pv
+  namespace: default
 spec:
   capacity:
-    storage: 1Gi
+    storage: 10Gi
   accessModes:
     - ReadWriteOnce
-  hostPath:
-    path: /data/mongo-answer
   persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-storage
+  local:
+    path: /mnt/mongo-answer-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - cd-vm # Nom du nœud CD

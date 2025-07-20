@@ -1,11 +1,12 @@
-
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mongo-answer-data-pvc # Nom unique pour votre volume persistant
+  name: mongo-answer-pvc
+  namespace: default
 spec:
   accessModes:
-    - ReadWriteOnce # Permet à un seul pod de monter le volume en lecture-écriture
+    - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi # Demande 1 Gigaoctet de stockage. Ajustez si nécessaire.
+      storage: 10Gi
+  storageClassName: local-storage

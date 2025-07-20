@@ -1,12 +1,10 @@
-# k8s/user-service/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user-service # Nom de votre déploiement pour user-service
-  labels:
-    app: user-service
+  name: user-service
+  namespace: default
 spec:
-  replicas: 1 # Nombre de réplicas souhaité
+  replicas: 1
   selector:
     matchLabels:
       app: user-service
@@ -16,44 +14,35 @@ spec:
         app: user-service
     spec:
       containers:
-      - name: user-service
-        image: johankarl/exam-user-service:latest # L'image Docker que vous poussez sur Docker Hub
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 8084 # Port par défaut de votre user-service (à vérifier dans votre code)
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: prod
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: http://eureka-service:8761/eureka # Pointe vers le Service Kubernetes d'Eureka
-        - name: SPRING_DATASOURCE_URL # Variable d'environnement pour la connexion PostgreSQL
-          value: jdbc:postgresql://postgres-user-db:5432/userdb # Utilise le nom du Service PostgreSQL
-        - name: SPRING_DATASOURCE_USERNAME
-          value: userdbuser # Utilisateur PostgreSQL défini dans postgres-user-db-deployment.yaml
-        - name: SPRING_DATASOURCE_PASSWORD
-          value: userdbpass # Mot de passe PostgreSQL défini dans postgres-user-db-deployment.yaml
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m"
-        livenessProbe: # Sonde de liveness
-          httpGet:
-            path: /actuator/health # Chemin de la health check Spring Boot
-            port: 8084
-          initialDelaySeconds: 120 # Peut prendre du temps à démarrer et se connecter à Eureka/PostgreSQL
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe: # Sonde de readiness
-          httpGet:
-            path: /actuator/health
-            port: 8084
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        resources: # Allocation de ressources
-          requests:
-            memory: "512Mi"
-            cpu: "300m"
-          limits:
-            memory: "1Gi"
-            cpu: "600m"
+        - name: user-service
+          image: johankarl/exam-user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://postgres-user-db:5432/userdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "postgres"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "postgres"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5

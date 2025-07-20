@@ -2,25 +2,35 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: eureka-service
+  namespace: default
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: eureka-service
+      app: eureka
   template:
     metadata:
       labels:
-        app: eureka-service
+        app: eureka
     spec:
       containers:
-      - name: eureka
-        image: johankarl/exam-eureka-service:latest # Image from Docker Hub with ':latest' tag
-        ports:
-        - containerPort: 8761
-        env:
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m"
-        resources:
-          limits:
-            memory: "1Gi"
-            cpu: "800m"
+        - name: eureka
+          image: johankarl/exam-eureka-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8761
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 10
+            periodSeconds: 5

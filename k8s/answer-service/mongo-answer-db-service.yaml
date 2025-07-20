@@ -1,15 +1,41 @@
-
 apiVersion: v1
 kind: Service
 metadata:
-  name: mongo-answer-db # C'est le nom que votre 'answer-service' utilisera pour se connecter (par exemple, dans l'URL de connexion JDBC/MongoDB)
-  labels:
-    app: mongo-answer-db
+  name: mongo-answer-db
+  namespace: default
 spec:
   selector:
-    app: mongo-answer-db # Sélectionne les pods avec ce label (ceux de votre déploiement MongoDB)
+    app: mongo-answer-db
   ports:
     - protocol: TCP
-      port: 27017 # Port sur lequel le service sera accessible
-      targetPort: 27017 # Port du conteneur MongoDB
-  type: ClusterIP # Rend le service accessible uniquement à l'intérieur du cluster
+      port: 27017
+      targetPort: 270/by
+      def answer-service-deployment
+      build:
+        context: ./backend
+        dockerfile: answer-service/Dockerfile
+      image: johankarl/exam-answer-service:latest
+      imagePullPolicy: Always
+      ports:
+        - containerPort: 8083
+      env:
+        - name: SPRING_DATA_MONGODB_URI
+          value: "mongodb://mongo-answer-db:27017/answerdb"
+        - name: SPRING_PROFILES_ACTIVE
+          value: "prod"
+        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+          value: "http://eureka-service:8761/eureka"
+        - name: JAVA_OPTS
+          value: "-Xmx512m -Xms256m"
+      livenessProbe:
+        httpGet:
+          path: /actuator/health
+          port: 8083
+        initialDelaySeconds: 30
+        periodSeconds: 10
+      readinessProbe:
+        httpGet:
+          path: /actuator/health
+          port: 8083
+        initialDelaySeconds: 10
+        periodSeconds: 5

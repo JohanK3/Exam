@@ -1,15 +1,13 @@
-# k8s/user-service/postgres-user-db-service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-user-db # C'est le nom que user-service utilisera pour se connecter
-  labels:
-    app: postgres-user-db
+  name: postgres-user-db
+  namespace: default
 spec:
   selector:
-    app: postgres-user-db # Sélectionne les pods de votre déploiement PostgreSQL
+    app: postgres-user-db
   ports:
     - protocol: TCP
-      port: 5432 # Port sur lequel le service sera accessible
-      targetPort: 5432 # Port du conteneur PostgreSQL
-  type: ClusterIP # Accès interne au cluster uniquement
+      port: 5432
+      targetPort: 5432
+  type: ClusterIP

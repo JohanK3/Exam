@@ -2,8 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: answer-service
-  labels:
-    app: answer-service
+  namespace: default
 spec:
   replicas: 1
   selector:
@@ -17,22 +16,27 @@ spec:
       containers:
         - name: answer-service
           image: johankarl/exam-answer-service:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8083
           env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: prod
-            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: http://eureka-service:8761/eureka
             - name: SPRING_DATA_MONGODB_URI
-              value: mongodb://mongo-answer-db:27017/answerdb
+              value: "mongodb://mongo-answer-db:27017/answerdb"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "300m"
-            limits:
-              memory: "1Gi"
-              cpu: "600m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 5

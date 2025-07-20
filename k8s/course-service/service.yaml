@@ -1,15 +1,13 @@
-# k8s/course-service/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: course-service # Ce nom sera utilisé par l'API Gateway pour router les requêtes
-  labels:
-    app: course-service
+  name: course-service
+  namespace: default
 spec:
   selector:
-    app: course-service # Sélectionne les pods de votre déploiement course-service
+    app: course-service
   ports:
     - protocol: TCP
-      port: 8083 # Port sur lequel le service sera exposé à l'intérieur du cluster
-      targetPort: 8083 # Port du conteneur course-service
-  type: ClusterIP # Accès interne au cluster uniquement
+      port: 8081
+      targetPort: 8081
+  type: ClusterIP

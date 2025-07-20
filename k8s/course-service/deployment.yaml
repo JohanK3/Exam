@@ -1,12 +1,10 @@
-# k8s/course-service/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: course-service # Nom de votre déploiement pour course-service
-  labels:
-    app: course-service
+  name: course-service
+  namespace: default
 spec:
-  replicas: 1 # Nombre de réplicas souhaité
+  replicas: 1
   selector:
     matchLabels:
       app: course-service
@@ -16,44 +14,35 @@ spec:
         app: course-service
     spec:
       containers:
-      - name: course-service
-        image: johankarl/exam-course-service:latest # L'image Docker que vous poussez sur Docker Hub
-        imagePullPolicy: IfNotPresent
-        ports:
-        - containerPort: 8083 # Port par défaut de votre course-service (à vérifier dans votre code)
-        env:
-        - name: SPRING_PROFILES_ACTIVE
-          value: prod
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: http://eureka-service:8761/eureka # Pointe vers le Service Kubernetes d'Eureka
-        - name: SPRING_DATASOURCE_URL # Variable d'environnement pour la connexion MySQL
-          value: jdbc:mysql://mysql-exam-db:3306/examdb # Utilise le nom du Service MySQL
-        - name: SPRING_DATASOURCE_USERNAME
-          value: examuser # Utilisateur MySQL défini dans mysql-exam-db-deployment.yaml
-        - name: SPRING_DATASOURCE_PASSWORD
-          value: exampass # Mot de passe MySQL défini dans mysql-exam-db-deployment.yaml
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m"
-        livenessProbe: # Sonde de liveness
-          httpGet:
-            path: /actuator/health # Chemin de la health check Spring Boot
-            port: 8083
-          initialDelaySeconds: 120 # Peut prendre du temps à démarrer et se connecter à Eureka/MySQL
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        readinessProbe: # Sonde de readiness
-          httpGet:
-            path: /actuator/health
-            port: 8083
-          initialDelaySeconds: 60
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-        resources: # Allocation de ressources
-          requests:
-            memory: "512Mi"
-            cpu: "300m"
-          limits:
-            memory: "1Gi"
-            cpu: "600m"
+        - name: course-service
+          image: johankarl/exam-course-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql-exam-db:3306/examdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "root"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "root"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 5

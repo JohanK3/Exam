@@ -1,15 +1,13 @@
-
 apiVersion: v1
 kind: Service
 metadata:
-  name: answer-service # Ce nom sera utilisé par l'API Gateway pour router les requêtes
-  labels:
-    app: answer-service
+  name: answer-service
+  namespace: default
 spec:
   selector:
-    app: answer-service # Sélectionne les pods de votre déploiement answer-service
+    app: answer-service
   ports:
     - protocol: TCP
-      port: 8081 # Port sur lequel le service sera exposé à l'intérieur du cluster
-      targetPort: 8081 # Port du conteneur answer-service
-  type: ClusterIP # Accès interne au cluster uniquement
+      port: 8083
+      targetPort: 8083
+  type: ClusterIP

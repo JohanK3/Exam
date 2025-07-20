@@ -1,12 +1,10 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: mongo-answer-db # Nom de votre déploiement MongoDB
-  labels:
-    app: mongo-answer-db
+  name: mongo-answer-db
+  namespace: default
 spec:
-  replicas: 1 # Un seul pod pour votre base de données
+  replicas: 1
   selector:
     matchLabels:
       app: mongo-answer-db
@@ -16,36 +14,30 @@ spec:
         app: mongo-answer-db
     spec:
       containers:
-      - name: mongo-answer-db
-        image: mongo:5.0 # L'image Docker de MongoDB. Assurez-vous d'avoir bien cette version ou adaptez.
-        imagePullPolicy: IfNotPresent # Permet à Kubernetes d'utiliser une image déjà présente localement
-        ports:
-        - containerPort: 27017 # Port par défaut de MongoDB
-        volumeMounts:
-        - name: mongo-answer-storage
-          mountPath: /data/db # Chemin où MongoDB stocke ses données à l'intérieur du conteneur
-        resources: # Allocation de ressources pour le conteneur
-          requests:
-            memory: "256Mi"
-            cpu: "200m"
-          limits:
-            memory: "512Mi"
-            cpu: "400m"
-        livenessProbe: # Sonde pour vérifier que le conteneur est toujours en vie
-          exec:
-            command: ["mongo", "--eval", "db.adminCommand({ping: 1})"]
-          initialDelaySeconds: 30
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 6
-        readinessProbe: # Sonde pour vérifier que le service est prêt à recevoir du trafic
-          exec:
-            command: ["mongo", "--eval", "db.adminCommand({ping: 1})"]
-          initialDelaySeconds: 20
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 3
-      volumes: # Définition du volume à monter
-      - name: mongo-answer-storage
-        persistentVolumeClaim:
-          claimName: mongo-answer-data-pvc # Référence à la PVC créée ci-dessus
+        - name: mongo
+          image: mongo:5.0
+          ports:
+            - containerPort: 27017
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+          livenessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.runCommand({ ping: 1 })"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - "db.runCommand({ ping: 1 })"
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: mongo-data
+          persistentVolumeClaim:
+            claimName: mongo-answer-pvc
