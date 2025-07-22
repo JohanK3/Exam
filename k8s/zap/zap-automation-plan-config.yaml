@@ -1,42 +1,20 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: zap-automation-plan-config
+  name: zap-automation-plan
   namespace: default
 data:
-  zap-automation-plan.yaml: |
-    env:
-      contexts:
-        - excludePaths: []
-          name: baseline
-          urls:
-            - http://frontend-service:80/
-            - http://api-gateway-service:8090/
-      parameters:
-        failOnError: false
-        progressToStdout: true
-      proxy:
-    jobs:
-      - parameters:
-          enableTags: false
-          maxAlertsPerRule: 10
-        type: passiveScan-config
-      - parameters:
-          maxDuration: 5
-          url: http://frontend-service:80/
-        type: spider
-      - parameters:
-          maxDuration: 0
-        type: passiveScan-wait
-      - parameters:
-          format: Long
-          summaryFile: /zap/wrk/zap_out.json
-        rules: []
-        type: outputSummary
-      - parameters:
-          reportDescription: 'Rapport de Scan de Sécurité ZAP'
-          reportDir: /zap/wrk/
-          reportFile: zap_report.json
-          reportTitle: 'Rapport de Scan de Sécurité ZAP'
-          template: traditional-json
-        type: report
+  zap-plan.yaml: |
+    context:
+      name: exam-context
+      urls:
+      - http://exam.local/
+      - http://exam.local/api
+      - http://exam.local/answer-service
+      - http://exam.local/exam-service
+      - http://exam.local/course-service
+      - http://exam.local/user-service
+    spider:
+      maxDepth: 5
+    activeScan:
+      policy: Default Policy
