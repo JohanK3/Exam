@@ -1,34 +1,29 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: owasp-zap-automation-job
+  name: owasp-zap-automation-${BUILD_NUMBER}
+  namespace: default
 spec:
   template:
-    metadata:
-      labels:
-        app: owasp-zap-automation
     spec:
       containers:
-      - name: zap-automation
-        image: zaproxy/zap-stable:2.15.0
-        command: ["zap.sh", "-cmd", "-autorun", "/zap/zap-automation-plan.yaml"]
+      - name: zap
+        image: owasp/zap2docker-stable
+        command:
+        - zap.sh
+        - -cmd
+        - -autorun
+        - /zap/wrk/zap-plan.yaml
         volumeMounts:
-        - name: zap-plan-volume
-          mountPath: /zap/zap-automation-plan.yaml
-          subPath: zap-automation-plan.yaml
-        - name: zap-work-volume
+        - name: zap-plan
+          mountPath: /zap/wrk/zap-plan.yaml
+          subPath: zap-plan.yaml
+        - name: zap-report
           mountPath: /zap/wrk
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "500m"
-          limits:
-            memory: "1Gi"
-            cpu: "1"
-      restartPolicy: Never
       volumes:
-      - name: zap-plan-volume
+      - name: zap-plan
         configMap:
-          name: zap-automation-plan-config
-      - name: zap-work-volume
+          name: zap-automation-plan
+      - name: zap-report
         emptyDir: {}
+      restartPolicy: Never
