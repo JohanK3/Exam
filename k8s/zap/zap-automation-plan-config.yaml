@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: zap-automation-plan
-  namespace: default
+  namespace: exam-namespace
 data:
   zap-plan.yaml: |
     context:

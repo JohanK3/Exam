@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mysql-exam-pvc
-  namespace: default
+  namespace: exam-namespace
 spec:
   accessModes:
     - ReadWriteOnce

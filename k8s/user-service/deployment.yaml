@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: user-service
-  namespace: default
+  namespace: exam-namespace
 spec:
   replicas: 1
   selector:

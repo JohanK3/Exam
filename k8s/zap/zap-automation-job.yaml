@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: owasp-zap-automation-${BUILD_NUMBER}
-  namespace: default
+  namespace: exam-namespace
 spec:
   template:
     spec:

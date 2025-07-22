@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mongo-answer-db
-  namespace: default
+  namespace: exam-namespace
 spec:
   selector:
     app: mongo-answer-db
