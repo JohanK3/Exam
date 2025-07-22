@@ -5,37 +5,9 @@ metadata:
   namespace: exam-namespace
 spec:
   selector:
-    app: mongo-answer-db
+    app: mongo-answer-db 
   ports:
     - protocol: TCP
-      port: 27017
-      targetPort: 270/by
-      def answer-service-deployment
-      build:
-        context: ./backend
-        dockerfile: answer-service/Dockerfile
-      image: johankarl/exam-answer-service:latest
-      imagePullPolicy: Always
-      ports:
-        - containerPort: 8083
-      env:
-        - name: SPRING_DATA_MONGODB_URI
-          value: "mongodb://mongo-answer-db:27017/answerdb"
-        - name: SPRING_PROFILES_ACTIVE
-          value: "prod"
-        - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-          value: "http://eureka-service:8761/eureka"
-        - name: JAVA_OPTS
-          value: "-Xmx512m -Xms256m"
-      livenessProbe:
-        httpGet:
-          path: /actuator/health
-          port: 8083
-        initialDelaySeconds: 30
-        periodSeconds: 10
-      readinessProbe:
-        httpGet:
-          path: /actuator/health
-          port: 8083
-        initialDelaySeconds: 10
-        periodSeconds: 5
+      port: 27017       
+      targetPort: 27017 
+  type: ClusterIP       
