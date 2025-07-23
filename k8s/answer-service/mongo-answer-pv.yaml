@@ -5,7 +5,7 @@ metadata:
   namespace: exam-namespace
 spec:
   capacity:
-    storage: 10Gi
+    storage: 5Gi
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
@@ -19,4 +19,4 @@ spec:
             - key: kubernetes.io/hostname
               operator: In
               values:
-                - cd-vm # Nom du nœud CD
+                - cd-vm 
