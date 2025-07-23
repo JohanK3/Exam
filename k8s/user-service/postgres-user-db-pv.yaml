@@ -5,7 +5,7 @@ metadata:
   namespace: exam-namespace
 spec:
   capacity:
-    storage: 10Gi
+    storage: 5Gi
   accessModes:
   - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
