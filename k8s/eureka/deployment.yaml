@@ -7,14 +7,14 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: eureka
+      app: eureka-service # MODIFIÉ : Pour correspondre au nom du service
   template:
     metadata:
       labels:
-        app: eureka
+        app: eureka-service # MODIFIÉ : Pour correspondre au nom du service
     spec:
       containers:
-        - name: eureka
+        - name: eureka-service # Nom du conteneur, peut être identique au service
           image: johankarl/exam-eureka-service:latest
           imagePullPolicy: Always
           ports:
@@ -22,15 +22,26 @@ spec:
           env:
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
+            - name: JAVA_TOOL_OPTIONS # AJOUTÉ : Pour contourner le problème Micrometer
+              value: "-Dmanagement.metrics.enable.system=false"
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
               port: 8761
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60 # Délai augmenté pour un service de découverte
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
               port: 8761
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30 # Délai augmenté
             periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
