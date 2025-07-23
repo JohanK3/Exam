@@ -7,14 +7,14 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: api-gateway
+      app: api-gateway-service # MODIFIÉ : Pour correspondre au nom du service
   template:
     metadata:
       labels:
-        app: api-gateway
+        app: api-gateway-service # MODIFIÉ : Pour correspondre au nom du service
     spec:
       containers:
-        - name: api-gateway
+        - name: api-gateway-service # Nom du conteneur, peut être identique au service
           image: johankarl/exam-api-gateway-service:latest
           imagePullPolicy: Always
           ports:
@@ -26,15 +26,26 @@ spec:
               value: "http://eureka-service:8761/eureka"
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
+            - name: JAVA_TOOL_OPTIONS # AJOUTÉ : Pour contourner le problème Micrometer
+              value: "-Dmanagement.metrics.enable.system=false"
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
               port: 8090
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60 # Délai augmenté pour laisser le temps à Eureka de démarrer
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
               port: 8090
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30 # Délai augmenté
             periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
