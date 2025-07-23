@@ -5,7 +5,7 @@ metadata:
   namespace: exam-namespace
 spec:
   selector:
-    app: eureka
+    app: eureka-service # MODIFIÉ : Pour correspondre au nouveau label du déploiement
   ports:
     - protocol: TCP
       port: 8761
