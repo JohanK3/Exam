@@ -9,4 +9,4 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  storageClassName: local-storage
+  storageClassName: local-path # CHANGÉ DE 'local-storage' À 'local-path'
