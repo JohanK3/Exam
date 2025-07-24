@@ -2,16 +2,16 @@ apiVersion: v1
 kind: PersistentVolume
 metadata:
   name: mysql-exam-pv
-  namespace: exam-namespace
+  # ATTENTION : La ligne 'namespace: exam-namespace' a été retirée car les PVs sont des ressources globales.
 spec:
   capacity:
     storage: 5Gi
   accessModes:
   - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
-  storageClassName: local-storage
+  storageClassName: local-path # CHANGÉ DE 'local-storage' À 'local-path'
   local:
-    path: /mnt/mysql-exam-data
+    path: /mnt/mysql-exam-data # Assurez-vous que ce chemin existe sur le nœud 'cd-vm'
   nodeAffinity:
     required:
       nodeSelectorTerms:
