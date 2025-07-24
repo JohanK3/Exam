@@ -5,9 +5,9 @@ metadata:
   namespace: exam-namespace
 spec:
   selector:
-    app: mongo-answer-db 
+    app: mongo-answer-db
   ports:
     - protocol: TCP
-      port: 27017       
-      targetPort: 27017 
-  type: ClusterIP       
+      port: 27017
+      targetPort: 27017
+  type: ClusterIP
