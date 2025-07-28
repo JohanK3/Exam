@@ -1,6 +1,7 @@
 FROM openjdk:11-jre-slim-buster
-VOLUME /tmp
-ARG JAR_FILE=api-gateway-service/target/*.jar
-COPY ${JAR_FILE} app.jar
+
+WORKDIR /app
+COPY api-gateway-service/target/*.jar app.jar
+
 EXPOSE 8090
-ENTRYPOINT ["java","-jar","/app.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
