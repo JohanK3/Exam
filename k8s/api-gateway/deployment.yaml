@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway-service
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway-service
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: api-gateway-service
+    spec:
+      containers:
+        - name: api-gateway-service
+          image: johankarl/exam-api-gateway-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
+            - name: JAVA_OPTS
+              value: "-Xmx768m -Xms512m" # AUGMENTÉ : Des ressources plus réalistes
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Dmanagement.metrics.enable.system=false"
+          livenessProbe:
+            tcpSocket:
+              port: 8090
+            initialDelaySeconds: 90 # AUGMENTÉ : Pour laisser le temps de démarrage + connexion Eureka
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8090
+            initialDelaySeconds: 70 # AUGMENTÉ : Doit être prêt à servir le trafic, après Eureka
+            periodSeconds: 10 # RECOMMANDÉ : Revenir à 10 ou 15 secondes
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi" # AUGMENTÉ
+              cpu: "500m" # AUGMENTÉ
+            limits:
+              memory: "1024Mi" # AUGMENTÉ
+              cpu: "1000m" # AUGMENTÉ

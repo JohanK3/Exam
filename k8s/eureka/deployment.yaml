@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka-service
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eureka-service
+  template:
+    metadata:
+      labels:
+        app: eureka-service
+    spec:
+      containers:
+        - name: eureka-service
+          image: johankarl/exam-eureka-service:latest
+          imagePullPolicy: Always # Laissez pour le débogage
+          ports:
+            - containerPort: 8761
+          env:
+            - name: JAVA_OPTS
+              value: "-Xmx768m -Xms512m" # AUGMENTÉ : Ressources JVM plus réalistes
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Dmanagement.metrics.enable.system=false" # Pour Micrometer
+            - name: SPRING_AUTOCONFIGURE_EXCLUDE # AJOUTÉ : Pour contourner la NullPointerException cgroupv2
+              value: "org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration"
+          livenessProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 90 # AUGMENTÉ : Donnez plus de temps pour un démarrage complet
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 70 # AUGMENTÉ : Doit être prêt à servir le trafic, après Eureka
+            periodSeconds: 10 # AUGMENTÉ : Moins agressif
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "512Mi" # AUGMENTÉ
+              cpu: "250m"
+            limits:
+              memory: "1Gi" # AUGMENTÉ : Revenir à 1Gi pour Eureka
+              cpu: "500m"
