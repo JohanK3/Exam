@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # Service Discovery
@@ -6,8 +6,11 @@ services:
     build:
       context: ./backend
       dockerfile: eureka-service/Dockerfile
+    image: exam-eureka-service
     ports:
       - "8761:8761"
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m
     networks:
       - app-network
 
@@ -16,11 +19,13 @@ services:
     build:
       context: ./backend
       dockerfile: api-gateway-service/Dockerfile
+    image: exam-api-gateway-service
     ports:
       - "8090:8090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - eureka-service
     networks:
@@ -31,12 +36,14 @@ services:
     build:
       context: ./backend
       dockerfile: answer-service/Dockerfile
+    image: exam-answer-service
     ports:
       - "8083:8083"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mongo-answer-db
       - eureka-service
@@ -60,6 +67,7 @@ services:
     build:
       context: ./backend
       dockerfile: exam-service/Dockerfile
+    image: exam-exam-service
     ports:
       - "8082:8082"
     environment:
@@ -69,6 +77,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -79,6 +88,7 @@ services:
     build:
       context: ./backend
       dockerfile: course-service/Dockerfile
+    image: exam-course-service
     ports:
       - "8081:8081"
     environment:
@@ -88,6 +98,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -114,6 +125,7 @@ services:
     build:
       context: ./backend
       dockerfile: user-service/Dockerfile
+    image: exam-user-service
     ports:
       - "8084:8080"
     environment:
@@ -123,6 +135,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - postgres-user-db
       - eureka-service
@@ -151,55 +164,13 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: exam-frontend
     ports:
       - "4200:80"
     depends_on:
       - api-gateway-service
     networks:
       - app-network
-
-  # SonarQube and its PostgreSQL Database
-  sonarqube:
-    image: sonarqube:lts-community # Utilise la version LTS Communautaire pour plus de stabilité
-    container_name: sonarqube_app
-    ports:
-      - "9000:9000" # Interface Web de SonarQube
-    environment:
-      - SONAR_JDBC_URL=jdbc:postgresql://sonar-db:5432/sonarqube
-      - SONAR_JDBC_USERNAME=sonar
-      - SONAR_JDBC_PASSWORD=sonar # <<--- TRÈS IMPORTANT : Change ce mot de passe !
-      - SONAR_WEB_JAVAOPTS=-Xmx512m -Xms512m # Ajuste la mémoire si ta VM est petite (ex: -Xmx256m si <2GB RAM)
-      - SONAR_SEARCH_JAVAOPTS=-Xmx512m -Xms512m # Pour le processus de recherche d'Elasticsearch intégré
-    volumes:
-      - sonarqube_data:/opt/sonarqube/data # Persistance des données de SonarQube
-      - sonarqube_extensions:/opt/sonarqube/extensions # Persistance des plugins
-      - sonarqube_logs:/opt/sonarqube/logs # Persistance des logs
-    networks:
-      - app-network # Utilise le même réseau que tes autres services
-    depends_on:
-      - sonar-db
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  sonar-db:
-    image: postgres:13
-    container_name: sonarqube_db
-    environment:
-      POSTGRES_USER: sonar
-      POSTGRES_PASSWORD: sonar # <<--- TRÈS IMPORTANT : Doit correspondre au mot de passe ci-dessus !
-      POSTGRES_DB: sonarqube
-    volumes:
-      - sonardb_data:/var/lib/postgresql/data # Persistance des données PostgreSQL
-    networks:
-      - app-network # Utilise le même réseau
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "sonar"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 networks:
   app-network:
@@ -209,7 +180,3 @@ volumes:
   mongo-answer-data:
   mysql-exam-data:
   postgres-user-data:
-  sonarqube_data:
-  sonarqube_extensions:
-  sonarqube_logs:
-  sonardb_data:
