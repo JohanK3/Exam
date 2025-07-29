@@ -1,8 +1,6 @@
-FROM openjdk:11-jre-slim-buster
+FROM eclipse-temurin:11-jre-alpine
 
-VOLUME /tmp
 WORKDIR /app
-
 COPY eureka-service/target/*.jar app.jar
 
 EXPOSE 8761
