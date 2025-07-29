@@ -26,6 +26,8 @@ spec:
               value: "-Dmanagement.metrics.enable.system=false" # Pour Micrometer
             - name: SPRING_AUTOCONFIGURE_EXCLUDE # AJOUTÉ : Pour contourner la NullPointerException cgroupv2
               value: "org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration"
+            - name: EUREKA_URL
+              value: "http://10.10.1.8:8761/eureka" # ✅ IP exposée via MetalLB
           livenessProbe:
             tcpSocket:
               port: 8761
