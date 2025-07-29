@@ -3,11 +3,13 @@ kind: Service
 metadata:
   name: eureka-service
   namespace: exam-namespace
+  annotations:
+    metallb.universe.tf/address-pool: lb-ipaddresspool
 spec:
   selector:
-    app: eureka-service # MODIFIÉ : Pour correspondre au nouveau label du déploiement
+    app: eureka-service
+  type: LoadBalancer
   ports:
     - protocol: TCP
       port: 8761
       targetPort: 8761
-  type: ClusterIP
