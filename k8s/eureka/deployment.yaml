@@ -16,36 +16,36 @@ spec:
       containers:
         - name: eureka-service
           image: johankarl/exam-eureka-service:latest
-          imagePullPolicy: Always # Laissez pour le débogage
+          imagePullPolicy: Always
           ports:
             - containerPort: 8761
           env:
             - name: JAVA_OPTS
-              value: "-Xmx768m -Xms512m" # AUGMENTÉ : Ressources JVM plus réalistes
+              value: "-Xmx768m -Xms512m"
             - name: JAVA_TOOL_OPTIONS
-              value: "-Dmanagement.metrics.enable.system=false" # Pour Micrometer
-            - name: SPRING_AUTOCONFIGURE_EXCLUDE # AJOUTÉ : Pour contourner la NullPointerException cgroupv2
+              value: "-Dmanagement.metrics.enable.system=false"
+            - name: SPRING_AUTOCONFIGURE_EXCLUDE
               value: "org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration"
             - name: EUREKA_URL
               value: http://eureka-service.exam-namespace.svc.cluster.local:8761/eureka
           livenessProbe:
             tcpSocket:
               port: 8761
-            initialDelaySeconds: 90 # AUGMENTÉ : Donnez plus de temps pour un démarrage complet
+            initialDelaySeconds: 90
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             tcpSocket:
               port: 8761
-            initialDelaySeconds: 70 # AUGMENTÉ : Doit être prêt à servir le trafic, après Eureka
-            periodSeconds: 10 # AUGMENTÉ : Moins agressif
+            initialDelaySeconds: 70
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           resources:
             requests:
-              memory: "512Mi" # AUGMENTÉ
+              memory: "512Mi"
               cpu: "250m"
             limits:
-              memory: "1Gi" # AUGMENTÉ : Revenir à 1Gi pour Eureka
+              memory: "1Gi"
               cpu: "500m"
