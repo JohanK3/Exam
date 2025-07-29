@@ -4,8 +4,9 @@ metadata:
   name: exam-ingress
   namespace: exam-namespace
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
+  ingressClassName: nginx
   rules:
     - host: exam.local
       http:
