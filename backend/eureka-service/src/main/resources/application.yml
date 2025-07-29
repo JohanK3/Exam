@@ -7,10 +7,24 @@ spring:
 
 eureka:
   client:
-    registerWithEureka: false
+    registerWithEureka: true
     fetchRegistry: false
-    service-url:
-      default-zone: ${EUREKA_URL:http://localhost:8761/eureka}
+    serviceUrl:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka}
 
   server:
     enableSelfPreservation: false
+    waitTimeInMsWhenSyncEmpty: 0
+    evictionIntervalTimerInMs: 60000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  health:
+    defaults:
+      enabled: true
