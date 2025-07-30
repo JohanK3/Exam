@@ -37,8 +37,8 @@ spec:
           livenessProbe:
             tcpSocket: # Changé de httpGet à tcpSocket
               port: 8080
-            initialDelaySeconds: 90 # Augmenté pour donner plus de temps au démarrage
-            periodSeconds: 15       # Vérifie moins fréquemment
+            initialDelaySeconds: 120 # Augmenté pour donner plus de temps au démarrage
+            periodSeconds: 20       # Vérifie moins fréquemment
             timeoutSeconds: 5       # Augmenté pour éviter les timeouts temporaires
             failureThreshold: 3
           readinessProbe:
