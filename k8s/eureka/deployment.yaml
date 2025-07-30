@@ -19,15 +19,20 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8761
-          env:
-            - name: JAVA_OPTS
-              value: "-Xmx768m -Xms512m"
-            - name: JAVA_TOOL_OPTIONS
-              value: "-Dmanagement.metrics.enable.system=false"
-            - name: SPRING_AUTOCONFIGURE_EXCLUDE
-              value: "org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration"
-            - name: EUREKA_URL
-              value: http://eureka-service.exam-namespace.svc.cluster.local:8761/eureka
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          startupProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
           livenessProbe:
             tcpSocket:
               port: 8761
@@ -38,14 +43,7 @@ spec:
           readinessProbe:
             tcpSocket:
               port: 8761
-            initialDelaySeconds: 70
+            initialDelaySeconds: 150
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
-          resources:
-            requests:
-              memory: "512Mi"
-              cpu: "250m"
-            limits:
-              memory: "1Gi"
-              cpu: "500m"
+            failureThreshold: 5
