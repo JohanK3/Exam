@@ -35,14 +35,16 @@ spec:
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # Changé de httpGet à tcpSocket
               port: 8081
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 90 # Augmenté
+            periodSeconds: 15       # Augmenté
+            timeoutSeconds: 5       # Augmenté
+            failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # Changé de httpGet à tcpSocket
               port: 8081
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 60 # Augmenté
+            periodSeconds: 10       # Augmenté
+            timeoutSeconds: 5       # Augmenté
+            failureThreshold: 3
