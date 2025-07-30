@@ -1,4 +1,4 @@
-FROM openjdk:11-jre-slim-buster
+FROM eclipse-temurin:11.0.23_9-jre-focal
 
 WORKDIR /app
 COPY api-gateway-service/target/*.jar app.jar
