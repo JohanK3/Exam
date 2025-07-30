@@ -35,18 +35,16 @@ spec:
             - name: JAVA_OPTS
               value: "-Xmx512m -Xms256m"
           livenessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # Changé de httpGet à tcpSocket
               port: 8080
-            initialDelaySeconds: 90 # Augmenté
-            periodSeconds: 15       # Augmenté
-            timeoutSeconds: 5       # Augmenté
+            initialDelaySeconds: 90 # Augmenté pour donner plus de temps au démarrage
+            periodSeconds: 15       # Vérifie moins fréquemment
+            timeoutSeconds: 5       # Augmenté pour éviter les timeouts temporaires
             failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /actuator/health
+            tcpSocket: # Changé de httpGet à tcpSocket
               port: 8080
-            initialDelaySeconds: 60 # Augmenté
-            periodSeconds: 10       # Augmenté
+            initialDelaySeconds: 60 # Augmenté pour s'assurer que l'app est vraiment prête
+            periodSeconds: 10       # Vérifie moins fréquemment
             timeoutSeconds: 5       # Augmenté
             failureThreshold: 3
