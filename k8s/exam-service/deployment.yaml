@@ -38,11 +38,15 @@ spec:
             httpGet:
               path: /actuator/health
               port: 8082
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 90 # Augmenté pour donner plus de temps au démarrage
+            periodSeconds: 15       # Vérifie moins fréquemment
+            timeoutSeconds: 5       # Augmenté pour éviter les timeouts temporaires
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health
               port: 8082
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 60 # Augmenté pour s'assurer que l'app est vraiment prête
+            periodSeconds: 10       # Vérifie moins fréquemment
+            timeoutSeconds: 5       # Augmenté
+            failureThreshold: 3
