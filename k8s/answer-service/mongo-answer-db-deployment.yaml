@@ -16,27 +16,32 @@ spec:
       containers:
         - name: mongo
           image: mongo:5.0
+          imagePullPolicy: Always
           ports:
             - containerPort: 27017
-          volumeMounts:
-            - name: mongo-data
-              mountPath: /data/db
           livenessProbe:
             exec:
               command:
                 - mongo
                 - --eval
                 - "db.runCommand({ ping: 1 })"
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 90 # Augmenté pour donner plus de temps au démarrage de MongoDB
+            periodSeconds: 20       # Vérifie moins fréquemment
+            timeoutSeconds: 10      # Augmenté pour donner plus de temps à la commande mongo
+            failureThreshold: 3
           readinessProbe:
             exec:
               command:
                 - mongo
                 - --eval
                 - "db.runCommand({ ping: 1 })"
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 60 # Augmenté pour s'assurer que MongoDB est vraiment prêt
+            periodSeconds: 10       # Vérifie moins fréquemment
+            timeoutSeconds: 10      # Augmenté
+            failureThreshold: 3
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
       volumes:
         - name: mongo-data
           persistentVolumeClaim:
