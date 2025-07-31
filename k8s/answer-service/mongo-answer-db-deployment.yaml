@@ -25,7 +25,7 @@ spec:
                 - mongo
                 - --eval
                 - "db.runCommand({ ping: 1 })"
-            initialDelaySeconds: 90 # Augmenté pour donner plus de temps au démarrage de MongoDB
+            initialDelaySeconds: 120 # Augmenté pour donner plus de temps au démarrage de MongoDB
             periodSeconds: 20       # Vérifie moins fréquemment
             timeoutSeconds: 10      # Augmenté pour donner plus de temps à la commande mongo
             failureThreshold: 3
@@ -35,7 +35,7 @@ spec:
                 - mongo
                 - --eval
                 - "db.runCommand({ ping: 1 })"
-            initialDelaySeconds: 60 # Augmenté pour s'assurer que MongoDB est vraiment prêt
+            initialDelaySeconds: 90 # Augmenté pour s'assurer que MongoDB est vraiment prêt
             periodSeconds: 10       # Vérifie moins fréquemment
             timeoutSeconds: 10      # Augmenté
             failureThreshold: 3
