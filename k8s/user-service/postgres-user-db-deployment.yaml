@@ -34,16 +34,20 @@ spec:
                 - pg_isready
                 - -U
                 - postgres
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 120 # Augmenté considérablement (2 minutes)
+            periodSeconds: 20        # Vérifie moins fréquemment
+            timeoutSeconds: 5        # Augmenté pour donner plus de temps à la commande
+            failureThreshold: 3
           readinessProbe:
             exec:
               command:
                 - pg_isready
                 - -U
                 - postgres
-            initialDelaySeconds: 10
-            periodSeconds: 5
+            initialDelaySeconds: 60  # Augmenté (1 minute)
+            periodSeconds: 10        # Vérifie moins fréquemment
+            timeoutSeconds: 5        # Augmenté
+            failureThreshold: 3
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
