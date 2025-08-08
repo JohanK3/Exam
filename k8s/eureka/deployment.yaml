@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka-service
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eureka-service
+  template:
+    metadata:
+      labels:
+        app: eureka-service
+    spec:
+      containers:
+        - name: eureka-service
+          image: johankarl/exam-eureka-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8761
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          startupProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 20
+          livenessProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 90
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: 8761
+            initialDelaySeconds: 150
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5

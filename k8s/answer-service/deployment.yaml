@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: answer-service
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: answer-service
+  template:
+    metadata:
+      labels:
+        app: answer-service
+    spec:
+      containers:
+        - name: answer-service
+          image: johankarl/exam-answer-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          env:
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://mongo-answer-db:27017/answerdb"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+            - name: JAVA_TOOL_OPTIONS # AJOUTÉ : Pour contourner le problème Micrometer
+              value: "-Dmanagement.metrics.enable.system=false"
+          livenessProbe:
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
+              port: 8083
+            initialDelaySeconds: 60 # Délai augmenté pour dépendances (Eureka, Mongo)
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket: # MODIFIÉ : Utilisation de tcpSocket
+              port: 8083
+            initialDelaySeconds: 30 # Délai augmenté
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"

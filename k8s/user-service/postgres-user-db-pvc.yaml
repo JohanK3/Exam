@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-user-pvc
+  namespace: exam-namespace
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path # CHANGÉ DE 'local-storage' À 'local-path'

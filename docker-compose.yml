@@ -1,4 +1,4 @@
-version: '3.8'
+
 
 services:
   # Service Discovery
@@ -6,8 +6,11 @@ services:
     build:
       context: ./backend
       dockerfile: eureka-service/Dockerfile
+    image: exam-eureka-service
     ports:
       - "8761:8761"
+    environment:
+      - JAVA_OPTS=-Xmx512m -Xms256m
     networks:
       - app-network
 
@@ -16,11 +19,13 @@ services:
     build:
       context: ./backend
       dockerfile: api-gateway-service/Dockerfile
+    image: exam-api-gateway-service
     ports:
       - "8090:8090"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - eureka-service
     networks:
@@ -31,12 +36,14 @@ services:
     build:
       context: ./backend
       dockerfile: answer-service/Dockerfile
+    image: exam-answer-service
     ports:
       - "8083:8083"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb://mongo-answer-db:27017/answerdb
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mongo-answer-db
       - eureka-service
@@ -60,6 +67,7 @@ services:
     build:
       context: ./backend
       dockerfile: exam-service/Dockerfile
+    image: exam-exam-service
     ports:
       - "8082:8082"
     environment:
@@ -69,6 +77,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -79,6 +88,7 @@ services:
     build:
       context: ./backend
       dockerfile: course-service/Dockerfile
+    image: exam-course-service
     ports:
       - "8081:8081"
     environment:
@@ -88,6 +98,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - mysql-exam-db
       - eureka-service
@@ -114,6 +125,7 @@ services:
     build:
       context: ./backend
       dockerfile: user-service/Dockerfile
+    image: exam-user-service
     ports:
       - "8084:8080"
     environment:
@@ -123,6 +135,7 @@ services:
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_PROFILES_ACTIVE=prod
       - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-service:8761/eureka
+      - JAVA_OPTS=-Xmx512m -Xms256m
     depends_on:
       - postgres-user-db
       - eureka-service
@@ -151,6 +164,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: exam-frontend
     ports:
       - "4200:80"
     depends_on:

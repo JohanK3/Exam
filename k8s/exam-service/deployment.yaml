@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exam-service
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: exam-service
+  template:
+    metadata:
+      labels:
+        app: exam-service
+    spec:
+      containers:
+        - name: exam-service
+          image: johankarl/exam-exam-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8082
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql-exam-db:3306/examdb"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "root"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "root"
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: "update"
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
+              value: "http://eureka-service:8761/eureka"
+            - name: JAVA_OPTS
+              value: "-Xmx512m -Xms256m"
+          livenessProbe:
+            tcpSocket: # Changé de httpGet à tcpSocket
+              port: 8082
+            initialDelaySeconds: 120 # Augmenté pour donner plus de temps au démarrage
+            periodSeconds: 20       # Vérifie moins fréquemment
+            timeoutSeconds: 5       # Augmenté pour éviter les timeouts temporaires
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: # Changé de httpGet à tcpSocket
+              port: 8082
+            initialDelaySeconds: 60 # Augmenté pour s'assurer que l'app est vraiment prête
+            periodSeconds: 10       # Vérifie moins fréquemment
+            timeoutSeconds: 5       # Augmenté
+            failureThreshold: 3

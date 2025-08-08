@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-user-db
+  namespace: exam-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-user-db
+  template:
+    metadata:
+      labels:
+        app: postgres-user-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:13
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "userdb"
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 120 # Augmenté considérablement (2 minutes)
+            periodSeconds: 20        # Vérifie moins fréquemment
+            timeoutSeconds: 5        # Augmenté pour donner plus de temps à la commande
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 60  # Augmenté (1 minute)
+            periodSeconds: 10        # Vérifie moins fréquemment
+            timeoutSeconds: 5        # Augmenté
+            failureThreshold: 3
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: postgres-user-pvc

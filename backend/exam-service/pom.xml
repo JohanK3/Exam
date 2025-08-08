@@ -7,8 +7,7 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>2.6.7</version>
-        <relativePath/> <!-- lookup parent from repository -->
-    </parent>
+        <relativePath/> </parent>
     <groupId>com.microservices</groupId>
     <artifactId>examen-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
@@ -19,11 +18,11 @@
         <spring-cloud.version>2021.0.1</spring-cloud.version>
     </properties>
     <dependencies>
-<dependency>
-     <groupId>com.microservices</groupId>
-    <artifactId>common-exam</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-</dependency>
+        <dependency>
+            <groupId>com.microservices</groupId>
+            <artifactId>common-exam</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
         <dependency>
             <groupId>com.microservices</groupId>
             <artifactId>common-service</artifactId>
@@ -40,6 +39,12 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.netflix.servo</groupId>
+            <artifactId>servo-core</artifactId>
+            <version>0.12.21</version>
         </dependency>
 
         <dependency>
