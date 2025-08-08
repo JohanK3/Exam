@@ -1,3 +1,4 @@
+// src/app/services/student.service.ts
 import { Injectable } from "@angular/core";
 import { environment } from "src/environments/environment";
 import { Student } from "../models/Student";
@@ -9,6 +10,7 @@ import { HttpClient } from '@angular/common/http';
   providedIn: "root",
 })
 export class StudentService extends CommonService<Student> {
+  // Le endpoint de base est désormais construit avec le préfixe "/api"
   protected baseEnpoint = `${environment.API_URL}/students`;
   public formData = new FormData();
 
