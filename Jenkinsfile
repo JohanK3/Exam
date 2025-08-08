@@ -7,6 +7,7 @@ pipeline {
     environment {
         DOCKER_HUB_USERNAME = 'johankarl'
         DOCKER_HUB_CRED_ID = 'dockerhub'
+        JMETER_HOME = '/opt/jmeter'
         DOCKER_COMPOSE_FILE = 'docker-compose.yml'
         SONAR_SCANNER_NAME = 'SonarQubeScannerCLI'
         SONAR_HOST_URL = 'http://192.168.91.129:9000'
@@ -99,6 +100,13 @@ pipeline {
                 // Ensure your docker-compose.yml correctly references the Dockerfiles.
                 sh "docker compose -f ${DOCKER_COMPOSE_FILE} build"
             }
+        }
+
+        stage('Tests de charge JMeter') {
+             steps {
+                     sh "${JMETER_HOME}/bin/jmeter -n -t test.jmx -l load_results.jtl -e -o jmeter-load-report"
+                     archiveArtifacts artifacts: 'load_results.jtl,jmeter-load-report/**', allowEmptyArchive: true
+             }
         }
 
         stage('Trivy Scan') {
