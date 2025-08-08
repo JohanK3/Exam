@@ -276,6 +276,37 @@ pipeline {
             }
         }
     }
+    /*
+        stage('Database Backup') {
+            steps {
+                script {
+                    // Create folder for database dumps
+                    sh 'mkdir -p /home/ci/db-backups'
+                    sh 'cd /home/ci/db-backups'
+        
+                    // MySQL full dump
+                    sh '''
+                    kubectl exec -n exam-namespace mysql-exam-db-78845b799c-7blpp -- \
+                    mysqldump -uroot -p'root' \
+                    --all-databases --routines --triggers --single-transaction --skip-lock-tables \
+                    > /home/ci/db-backups/mysql-full-dump.sql
+                    '''
+        
+                    // PostgreSQL full dump
+                    sh '''
+                    kubectl exec -n exam-namespace postgres-user-db-6d4ddb65f6-rh8nz -- \
+                    pg_dumpall -U postgres > /home/ci/db-backups/postgres-full-dump.sql
+                    '''
+        
+                    // MongoDB dump (gzipped archive format)
+                    sh '''
+                    kubectl exec -n exam-namespace mongo-answer-db-679976bc95-xjpsm -- \
+                    mongodump --archive --gzip > /home/ci/db-backups/mongo-dump.archive.gz
+                    '''
+                }
+            }
+        }
+        */
     post {
     always {
             echo "Fin du pipeline CI/CD"
