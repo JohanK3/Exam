@@ -1,4 +1,3 @@
-// src/app/services/exam.service.ts
 import { Injectable } from '@angular/core';
 import { CommonService } from './common.service';
 import { Exam } from '../models/Exam';
@@ -11,7 +10,6 @@ import { HttpClient } from '@angular/common/http';
   providedIn: 'root'
 })
 export class ExamService extends CommonService<Exam> {
-  // Le endpoint de base est désormais construit avec le préfixe "/api"
   protected baseEnpoint = `${environment.API_URL}/exams`;
 
   constructor(http: HttpClient){
